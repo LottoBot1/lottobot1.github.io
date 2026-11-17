@@ -44,6 +44,7 @@
     <button class="tab" data-view="gen"><svg viewBox="0 0 24 24"><path d="M7.5 5.6 10 7 8.6 4.5 10 2 7.5 3.4 5 2l1.4 2.5L5 7zm12 9.8L17 14l1.4 2.5L17 19l2.5-1.4L22 19l-1.4-2.5L22 14zM22 2l-2.5 1.4L17 2l1.4 2.5L17 7l2.5-1.4L22 7l-1.4-2.5zm-7.63 5.29a1 1 0 0 0-1.41 0L1.29 18.96a1 1 0 0 0 0 1.41l2.34 2.34a1 1 0 0 0 1.41 0L16.7 11.05a1 1 0 0 0 0-1.41l-2.33-2.35zm-1.03 5.49-2.12-2.12 2.44-2.44 2.12 2.12-2.44 2.44z"/></svg><span>Generator</span></button>
     <button class="tab" data-view="stats"><svg viewBox="0 0 24 24"><path d="M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z"/></svg><span>Statystyki</span></button>
     <button class="tab" data-view="bets"><svg viewBox="0 0 24 24"><path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm-9 14-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg><span>Zakłady</span><b class="badge" id="betsBadge" hidden></b></button>
+    <button class="tab" data-view="rank"><svg viewBox="0 0 24 24"><path d="M19 5h-2V3H7v2H5a2 2 0 0 0-2 2v1c0 2.55 1.92 4.63 4.39 4.94A5.01 5.01 0 0 0 11 15.9V19H7v2h10v-2h-4v-3.1a5.01 5.01 0 0 0 3.61-2.96C19.08 12.63 21 10.55 21 8V7a2 2 0 0 0-2-2zM5 8V7h2v3.82A3 3 0 0 1 5 8zm14 0a3 3 0 0 1-2 2.82V7h2v1z"/></svg><span>Ranking</span></button>
     <button class="tab" data-view="more"><svg viewBox="0 0 24 24"><path d="M6 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm12 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm-6 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></svg><span>Więcej</span></button>
   </nav>
 
@@ -73,7 +74,7 @@
         <div class="card-head"><h2>Generator zakładów</h2><span class="pill" id="genGameLabel"></span></div>
         <div class="chips" id="methodChips">
           <button class="chip active" data-method="stat">📊 Statystyka</button>
-          <button class="chip" data-method="trend">📈 Model trendu</button>
+          <button class="chip" data-method="trend" data-premium>📈 Model trendu</button>
           <button class="chip" data-method="random">🎲 Losowo</button>
           <button class="chip" data-method="manual">✋ Własne</button>
         </div>
@@ -122,15 +123,15 @@
         <div class="chips" id="rangeChips">
           <button class="chip" data-range="50">50</button>
           <button class="chip active" data-range="100">100</button>
-          <button class="chip" data-range="250">250</button>
-          <button class="chip" data-range="500">500</button>
-          <button class="chip" data-range="0">Wszystkie</button>
+          <button class="chip" data-range="250" data-premium>250</button>
+          <button class="chip" data-range="500" data-premium>500</button>
+          <button class="chip" data-range="0" data-premium>Wszystkie</button>
         </div>
         <p class="hint" id="rangeInfo"></p>
         <div class="seg small" id="heatMode">
           <button class="seg-btn active" data-mode="freq">Częstość</button>
           <button class="seg-btn" data-mode="gap">Zaległość</button>
-          <button class="seg-btn" data-mode="trend">Model</button>
+          <button class="seg-btn" data-mode="trend" data-premium>Model</button>
         </div>
         <div class="heat" id="heat"></div>
         <div class="heat-detail" id="heatDetail">Dotknij liczby, aby zobaczyć szczegóły.</div>
@@ -144,7 +145,7 @@
         <div class="card"><h3>Parzyste / nieparzyste</h3><div class="bars" id="evenBars"></div></div>
         <div class="card"><h3>Suma liczb</h3><div class="bars" id="sumBars"></div></div>
       </div>
-      <div class="card"><h3>Najczęstsze pary</h3><div class="pairs" id="pairs"></div></div>
+      <div class="card"><h3 data-premium>Najczęstsze pary</h3><div class="pairs" id="pairs"></div></div>
     </section>
 
     <!-- ZAKŁADY -->
@@ -162,6 +163,51 @@
       <div id="betList"></div>
     </section>
 
+    <!-- RANKING -->
+    <section class="view" id="view-rank">
+      <div id="rankGate"></div>
+      <div id="rankBody" hidden>
+        <div class="card">
+          <div class="card-head"><h2>Ranking</h2><span class="pill">🏆 beta</span></div>
+          <div class="seg small" id="rankScope">
+            <button class="seg-btn active" data-scope="global">Globalny</button>
+            <button class="seg-btn" data-scope="group">Grupa</button>
+          </div>
+          <select class="input" id="rankGroup" hidden></select>
+          <div class="chips" id="rankPeriod" style="margin-top:10px">
+            <button class="chip" data-p="week">7 dni</button>
+            <button class="chip active" data-p="month">30 dni</button>
+            <button class="chip" data-p="all">Zawsze</button>
+          </div>
+          <div class="my-stats" id="myStats"></div>
+          <div class="rank-list" id="rankList"></div>
+          <p class="hint">Liczą się zakłady zapisane na koncie <b>przed</b> losowaniem, przy połączeniu z internetem. Zakłady zaimportowane, dodane offline lub zmienione po zapisaniu nie liczą się do rankingu. Kolejność ustala średnia trafień na zakład.</p>
+        </div>
+
+        <div class="card" id="publicCard"></div>
+
+        <div class="card">
+          <h2>Moje grupy</h2>
+          <p class="hint">Rywalizuj ze znajomymi: załóż grupę i wyślij im kod lub link zaproszenia.</p>
+          <div id="groupList"></div>
+          <form class="row-gap" id="groupCreate">
+            <input class="input" name="name" maxlength="40" placeholder="Nazwa nowej grupy, np. Rodzinka">
+            <button class="btn primary">Załóż</button>
+          </form>
+          <form class="row-gap" id="groupJoin">
+            <input class="input" name="code" maxlength="12" placeholder="Kod zaproszenia" autocapitalize="characters">
+            <button class="btn">Dołącz</button>
+          </form>
+          <p class="acct-msg" id="groupMsg"></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- PREMIUM -->
+    <section class="view" id="view-premium">
+      <div class="card premium-card" id="premiumBody"></div>
+    </section>
+
     <!-- KONTO -->
     <section class="view" id="view-account">
       <div class="card acct-card" id="accountBody"></div>
@@ -169,6 +215,11 @@
 
     <!-- WIĘCEJ -->
     <section class="view" id="view-more">
+      <div class="card premium-teaser" data-goto="premium">
+        <div><b>👑 Typer49 Premium</b><div class="muted" id="premiumTeaser">Sprawdź, co zyskujesz</div></div>
+        <span class="muted">›</span>
+      </div>
+
       <div class="card">
         <h2>Sprawdź kupon</h2>
         <p class="hint">Wpisz 6 liczb – sprawdzę ostatnie losowania i całą historię.</p>

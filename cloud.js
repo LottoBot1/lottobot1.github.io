@@ -35,6 +35,7 @@ window.Cloud = (() => {
     if (/invalid.*email|Unable to validate email/i.test(m)) return 'Nieprawidłowy adres e-mail.';
     if (/duplicate key.*nick|profiles_nick_key/i.test(m)) return 'Ten pseudonim jest już zajęty.';
     if (/profiles_nick_check/i.test(m)) return 'Pseudonim: 3–20 znaków, litery, cyfry, _ . -';
+    if (/groups_name_check/i.test(m)) return 'Nazwa grupy: 3–40 znaków.';
     if (isNetErr(e)) return 'Brak połączenia z serwerem. Sprawdź internet.';
     return m || 'Nieznany błąd.';
   }
@@ -107,12 +108,37 @@ window.Cloud = (() => {
     status();
   }
   async function getProfile() {
-    const { data, error } = await sb.from('profiles').select('nick, created_at').eq('id', user.id).maybeSingle();
+    const { data, error } = await sb.from('profiles').select('nick, created_at, public_ranking, plan, premium_until').eq('id', user.id).maybeSingle();
     if (error) throw new Error(plError(error));
     return data || {};
   }
   async function setNick(nick) {
     const { error } = await sb.from('profiles').update({ nick: nick || null }).eq('id', user.id);
+    if (error) throw new Error(plError(error));
+  }
+  async function setPublicRanking(on) {
+    const { error } = await sb.from('profiles').update({ public_ranking: !!on }).eq('id', user.id);
+    if (error) throw new Error(plError(error));
+  }
+
+  // ---------------------------------------------------------- ranking i grupy (Etap 2)
+  async function rpc(name, args) {
+    if (!user) throw new Error('Zaloguj się.');
+    const { data, error } = await sb.rpc(name, args);
+    if (error) throw new Error(plError(error));
+    return data;
+  }
+  const ranking = (period, groupId) => rpc('ranking', { p_period: period, p_group: groupId || null });
+  const myStats = period => rpc('my_stats', { p_period: period }).then(r => (Array.isArray(r) ? r[0] : r) || {});
+  const myGroups = () => rpc('my_groups', {});
+  const createGroup = name => rpc('create_group', { p_name: name });
+  const joinGroup = code => rpc('join_group', { p_code: code });
+  async function leaveGroup(groupId) {
+    const { error } = await sb.from('group_members').delete().eq('group_id', groupId).eq('user_id', user.id);
+    if (error) throw new Error(plError(error));
+  }
+  async function deleteGroup(groupId) {
+    const { error } = await sb.from('groups').delete().eq('id', groupId);
     if (error) throw new Error(plError(error));
   }
 
@@ -181,7 +207,8 @@ window.Cloud = (() => {
   return {
     get enabled() { return enabled; },
     get user() { return user; },
-    init, signUp, signIn, signOut, resetPassword, updatePassword, deleteAccount, getProfile, setNick,
+    init, signUp, signIn, signOut, resetPassword, updatePassword, deleteAccount, getProfile, setNick, setPublicRanking,
+    ranking, myStats, myGroups, createGroup, joinGroup, leaveGroup, deleteGroup,
     push, remove, flush, fullSync, pending: () => loadQ().length,
   };
 })();

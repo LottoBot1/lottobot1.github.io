@@ -10,6 +10,15 @@ Aplikacja webowa (PWA) do analizy gier liczbowych 6/49 (Lotto i Lotto Plus). Dzi
 - E-maile (potwierdzenie konta, reset hasła) wychodzą z typer49.kontakt@gmail.com przez SMTP Gmaila, uwierzytelnione hasłem aplikacji.
 - Automat GitHub raz dziennie „budzi” bazę, bo darmowy Supabase usypia projekt po 7 dniach bez ruchu.
 
+## Ranking, grupy i Premium (Etap 2)
+
+- Schemat jest w [`supabase/stage2.sql`](supabase/stage2.sql).
+- **Losowania w bazie:** pg_cron i pg_net co 30 min pobierają `data/*.json` z GitHub Pages do tabeli `draws`.
+- **Ranking:** średnia trafień na rozliczony zakład, w okresach 7 dni, 30 dni i zawsze. W rankingu globalnym są tylko osoby z pseudonimem i włączoną widocznością, które mają min. 3 zakłady.
+- **Ochrona przed oszustwami:** kolumnę `bets.ranked` ustawia wyzwalacz. Zakład liczy się tylko wtedy, gdy trafił do chmury w ciągu 15 min od utworzenia i nie był później zmieniany.
+- **Grupy:** zakładanie (max 10 własnych), dołączanie kodem lub linkiem `#join=KOD` (max 50 osób), ranking grupy.
+- **Premium:** w `profiles.plan` i `premium_until` zmiany robi tylko serwer, a użytkownik nie może sam ustawić planu. W `config.js` opcja `betaAllPremium: true` daje w okresie testów wszystko za darmo.
+
 ## Co poprawiono względem wersji w Pythonie/Streamlit
 
 | Problem w starej wersji | Rozwiązanie |

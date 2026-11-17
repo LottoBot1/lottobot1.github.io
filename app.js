@@ -370,7 +370,9 @@
     $('#evenBars').innerHTML = st.even.map((v, i) => bar(`${i} parz.`, v, evT)).join('');
     const suT = { arr: st.sumCnt, n: st.n };
     $('#sumBars').innerHTML = st.sumBins.map(([a, b], i) => bar(i === 0 ? `< 100` : i === st.sumBins.length - 1 ? `≥ 200` : `${a}–${b}`, st.sumCnt[i], suT)).join('');
-    $('#pairs').innerHTML = st.topPairs.map(([a, b, c]) => `<div class="pair">${balls([a, b], 'xs')}<span class="muted">${c}×</span></div>`).join('');
+    $('#pairs').innerHTML = !isPremium()
+      ? '<button class="btn" data-goto="premium">👑 Odblokuj w Premium</button>'
+      : st.topPairs.map(([a, b, c]) => `<div class="pair">${balls([a, b], 'xs')}<span class="muted">${c}×</span></div>`).join('');
     $('#heatDetail').textContent = 'Dotknij liczby, aby zobaczyć szczegóły.';
   }
 
@@ -591,6 +593,7 @@
           <div><b>${esc(nick || 'Bez pseudonimu')}</b><div class="muted">${esc(u.email)}</div></div>
         </div>
         <p class="sync-line" id="syncLine">${syncLabel()}</p>
+        <p class="sync-line">Plan: <b>${isPremium() ? '👑 Premium' : 'Darmowy'}</b>${CFG.betaAllPremium ? ' (darmowy w okresie testów)' : ''} · <a href="#premium">szczegóły</a></p>
         <p class="hint">Twoje zakłady (${state.bets.length}) są zapisane na koncie i widoczne na każdym urządzeniu, na którym się zalogujesz.</p>
         <button class="btn" id="syncNow">🔄 Synchronizuj teraz</button>
 
@@ -652,7 +655,13 @@
   async function onAuth(user, event) {
     renderAccountButton();
     if (user) {
-      Cloud.getProfile().then(p => { acct.profile = p; if (state.view === 'account') renderAccount(); }).catch(() => {});
+      Cloud.getProfile().then(p => {
+        acct.profile = p; decoratePremium();
+        if (state.view === 'account') renderAccount();
+        if (state.view === 'rank') renderPublicCard();
+      }).catch(() => {});
+      loadGroups().then(() => { if (state.view === 'rank') renderRank(); });
+      if (rk.pendingJoin) { const c = rk.pendingJoin; rk.pendingJoin = null; tryJoin(c); }
       if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
         const local = state.bets.filter(b => !b.synced);
         if (event === 'SIGNED_IN' && local.length && !store.get('typer.owner', null)) {
@@ -667,7 +676,7 @@
     } else {
       // wylogowanie: usuń dane konta z urządzenia (prywatność na wspólnych urządzeniach)
       if (store.get('typer.owner', null)) { state.bets = []; saveBets(); store.set('typer.owner', null); }
-      acct.profile = null; acct.recovery = false;
+      acct.profile = null; acct.recovery = false; rk.groups = []; rk.group = null;
       renderAll();
     }
     if (state.view === 'account') renderAccount();
@@ -715,6 +724,202 @@
     });
   }
 
+  // ------------------------------------------------------------------ Premium
+  const CFG = window.APP_CONFIG || {};
+  const LIMITS = CFG.freeLimits || { pendingBets: 10, setsPerClick: 3 };
+  function isPremium() {
+    if (CFG.betaAllPremium) return true;
+    const p = acct.profile;
+    return !!(p && p.plan === 'premium' && (!p.premium_until || new Date(p.premium_until) > new Date()));
+  }
+  function requirePremium(what) {
+    if (isPremium()) return true;
+    toast(`👑 ${what} – funkcja Premium`);
+    setView('premium');
+    return false;
+  }
+  function decoratePremium() {
+    $$('[data-premium]').forEach(el => {
+      if (!el.querySelector('.crown')) el.insertAdjacentHTML('beforeend', '<span class="crown" title="Premium">👑</span>');
+    });
+    const t = $('#premiumTeaser');
+    if (t) t.textContent = CFG.betaAllPremium ? 'W okresie testów wszystko za darmo 🎉' : isPremium() ? 'Masz aktywne Premium ✓' : 'Sprawdź, co zyskujesz';
+  }
+  const PREMIUM_FEATURES = [
+    ['Wyniki, odliczanie, sprawdzanie kuponów', '✓', '✓'],
+    ['Ranking globalny i grupy znajomych', '✓', '✓'],
+    ['Synchronizacja między urządzeniami', '✓', '✓'],
+    ['Zestawy z generatora na raz', 'do 3', 'do 10'],
+    ['Aktywne (oczekujące) zakłady', 'do 10', 'bez limitu'],
+    ['Model trendu', '–', '✓'],
+    ['Statystyki z 250 / 500 / wszystkich losowań', '–', '✓'],
+    ['Mapa „Model”, najczęstsze pary', '–', '✓'],
+    ['Powiadomienia po losowaniu (wkrótce)', '–', '✓'],
+    ['Systemy skrócone, bilans wydatków (wkrótce)', '–', '✓'],
+    ['Bez reklam (gdy pojawią się reklamy)', '–', '✓'],
+  ];
+  function renderPremium() {
+    const prem = isPremium();
+    $('#premiumBody').innerHTML = `
+      <h2>👑 Typer49 Premium</h2>
+      ${CFG.betaAllPremium
+        ? '<div class="alert ok">🎉 Trwają testy aplikacji – <b>wszystkie funkcje Premium są teraz darmowe</b> dla każdego. Płatna subskrypcja pojawi się razem z aplikacją w Google Play.</div>'
+        : prem ? '<div class="alert ok">✓ Masz aktywne Premium. Dziękujemy!</div>' : ''}
+      <table class="plan-table">
+        <tr><th></th><th>Darmowy</th><th>Premium</th></tr>
+        ${PREMIUM_FEATURES.map(([f, a, b]) => `<tr><td>${f}</td><td>${a}</td><td><b>${b}</b></td></tr>`).join('')}
+      </table>
+      ${prem ? '' : '<button class="btn primary big" disabled>Kup Premium – wkrótce w Google Play</button>'}
+      <p class="hint">Premium nie zwiększa szans wygranej – daje wygodniejsze narzędzia i wspiera rozwój aplikacji.</p>`;
+  }
+  function pendingCount() { return state.bets.filter(b => evalBet(b).status !== 'done').length; }
+  function canAddBets(n = 1) {
+    if (isPremium() || pendingCount() + n <= LIMITS.pendingBets) return true;
+    requirePremium(`Limit ${LIMITS.pendingBets} oczekujących zakładów`);
+    return false;
+  }
+
+  // ------------------------------------------------------------------ ranking i grupy
+  const rk = { scope: 'global', period: 'month', group: null, groups: [], loading: false, pendingJoin: null };
+  const fmtAvg = v => Number(v || 0).toFixed(2).replace('.', ',');
+
+  function setGroupMsg(t, ok = false) { const el = $('#groupMsg'); el.textContent = t || ''; el.className = 'acct-msg' + (t ? (ok ? ' ok' : ' err') : ''); }
+
+  async function loadGroups() {
+    try { rk.groups = await Cloud.myGroups() || []; } catch (e) { rk.groups = []; setGroupMsg(e.message); }
+    if (rk.group && !rk.groups.some(g => g.id === rk.group)) rk.group = null;
+    if (!rk.group && rk.groups.length) rk.group = rk.groups[0].id;
+  }
+
+  function renderGroups() {
+    const sel = $('#rankGroup');
+    sel.innerHTML = rk.groups.map(g => `<option value="${g.id}" ${g.id === rk.group ? 'selected' : ''}>${esc(g.name)} (${g.members})</option>`).join('');
+    sel.hidden = rk.scope !== 'group' || !rk.groups.length;
+    $('#groupList').innerHTML = rk.groups.length ? rk.groups.map(g => `
+      <div class="group-item">
+        <div><b>${esc(g.name)}</b> ${g.is_owner ? '<span class="pill">Twoja</span>' : ''}
+          <div class="muted">${g.members} ${g.members === 1 ? 'osoba' : g.members < 5 ? 'osoby' : 'osób'} · kod <span class="code">${esc(g.invite_code)}</span></div></div>
+        <div class="row-gap" style="margin:0">
+          <button class="btn sm" data-ginvite="${g.id}">📤 Zaproś</button>
+          ${g.is_owner ? `<button class="btn sm" data-gdel="${g.id}">🗑</button>` : `<button class="btn sm" data-gleave="${g.id}">Opuść</button>`}
+        </div>
+      </div>`).join('') : '<p class="muted">Nie należysz jeszcze do żadnej grupy.</p>';
+  }
+
+  function renderPublicCard() {
+    const p = acct.profile || {};
+    const el = $('#publicCard');
+    el.innerHTML = `
+      <h3>Widoczność w rankingu globalnym</h3>
+      ${p.nick ? '' : '<p class="hint">Aby pojawić się w rankingu, ustaw najpierw <a href="#account">pseudonim w ustawieniach konta</a>.</p>'}
+      <label class="switch-row ${p.nick ? '' : 'locked'}">
+        <input type="checkbox" id="publicToggle" ${p.public_ranking ? 'checked' : ''} ${p.nick ? '' : 'disabled'}>
+        <span class="switch"></span>
+        <span>Pokazuj mnie w rankingu jako <b>${esc(p.nick || '—')}</b></span>
+      </label>
+      <p class="hint">W rankingu widać tylko pseudonim i statystyki – nigdy Twoje liczby ani e-mail. W grupach znajomi widzą Cię zawsze.</p>`;
+  }
+
+  async function renderRank() {
+    const gate = $('#rankGate'), body = $('#rankBody');
+    if (!Cloud.enabled || !Cloud.user) {
+      body.hidden = true;
+      gate.innerHTML = `<div class="card empty"><h2>🏆 Ranking graczy</h2><p>Porównuj swoje typy z innymi i rywalizuj ze znajomymi w grupach.</p>
+        <button class="btn primary" data-goto="account">Zaloguj się lub załóż konto</button></div>`;
+      return;
+    }
+    gate.innerHTML = ''; body.hidden = false;
+    $$('#rankScope .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.scope === rk.scope));
+    $$('#rankPeriod .chip').forEach(c => c.classList.toggle('active', c.dataset.p === rk.period));
+    renderPublicCard();
+    renderGroups();
+    await loadGroups();     // odśwież listę grup przy każdym wejściu (ktoś mógł usunąć grupę)
+    renderGroups();
+    await loadRanking();
+  }
+
+  async function loadRanking() {
+    const list = $('#rankList'), my = $('#myStats');
+    if (rk.scope === 'group' && !rk.group) {
+      list.innerHTML = '<p class="muted">Załóż grupę albo dołącz do niej kodem (niżej), aby zobaczyć ranking grupy.</p>';
+      my.innerHTML = ''; return;
+    }
+    list.innerHTML = '<p class="muted">Ładowanie…</p>';
+    try {
+      const [rows, s] = await Promise.all([Cloud.ranking(rk.period, rk.scope === 'group' ? rk.group : null), Cloud.myStats(rk.period)]);
+      my.innerHTML = [
+        [s.bets || 0, 'rozliczone'], [fmtAvg(s.avg_hits), 'śr. trafień'], [s.best || 0, 'najlepszy'], [s.hits3 || 0, 'trafione 3+'],
+      ].map(([v, l]) => `<div class="stat"><b>${v}</b><span>${l}</span></div>`).join('');
+      list.innerHTML = rows && rows.length ? rows.map(r => `
+        <div class="rank-row ${r.is_me ? 'me' : ''}">
+          <div class="rank-pos">${r.pos <= 3 ? ['🥇', '🥈', '🥉'][r.pos - 1] : r.pos}</div>
+          <div class="rank-nick">${esc(r.nick)}${r.is_me ? ' (Ty)' : ''}<small>${r.bets} zakł. · najlepszy ${r.best} · 3+: ${r.hits3}×</small></div>
+          <div class="rank-score">${fmtAvg(r.avg_hits)}<small>śr. traf.</small></div>
+        </div>`).join('')
+        : `<p class="muted">${rk.scope === 'group' ? 'W tej grupie nie ma jeszcze rozliczonych zakładów.' : 'Ranking jest jeszcze pusty – bądź pierwszy! Potrzeba min. 3 rozliczonych zakładów i włączonej widoczności.'}</p>`;
+    } catch (e) { list.innerHTML = `<p class="acct-msg err">${esc(e.message)}</p>`; }
+  }
+
+  async function tryJoin(code) {
+    try {
+      const gid = await Cloud.joinGroup(code);
+      await loadGroups(); rk.group = gid; rk.scope = 'group';
+      toast('Dołączono do grupy ✓');
+      if (state.view === 'rank') renderRank(); else setView('rank');
+    } catch (e) { toast(e.message); setGroupMsg(e.message); }
+  }
+
+  async function shareInvite(g) {
+    const url = `${location.origin}${location.pathname}#join=${g.invite_code}`;
+    const text = `Dołącz do mojej grupy „${g.name}” w Typer49 i porównajmy nasze typy! Kod: ${g.invite_code}`;
+    try {
+      if (navigator.share) await navigator.share({ title: 'Typer49 – zaproszenie', text, url });
+      else { await navigator.clipboard.writeText(`${text}\n${url}`); toast('Skopiowano zaproszenie do schowka'); }
+    } catch { /* anulowano */ }
+  }
+
+  function bindRank() {
+    $('#rankScope').addEventListener('click', e => { const b = e.target.closest('.seg-btn'); if (!b) return; rk.scope = b.dataset.scope; renderRank(); });
+    $('#rankPeriod').addEventListener('click', e => { const c = e.target.closest('.chip'); if (!c) return; rk.period = c.dataset.p; $$('#rankPeriod .chip').forEach(x => x.classList.toggle('active', x === c)); loadRanking(); });
+    $('#rankGroup').addEventListener('change', e => { rk.group = e.target.value; loadRanking(); });
+    $('#publicCard').addEventListener('change', async e => {
+      if (e.target.id !== 'publicToggle') return;
+      const on = e.target.checked;
+      try { await Cloud.setPublicRanking(on); acct.profile = { ...(acct.profile || {}), public_ranking: on }; toast(on ? 'Jesteś widoczny w rankingu ✓' : 'Ukryto Cię w rankingu'); loadRanking(); }
+      catch (err) { e.target.checked = !on; toast(err.message); }
+    });
+    $('#groupCreate').addEventListener('submit', async e => {
+      e.preventDefault(); const name = e.target.name.value.trim(); setGroupMsg('');
+      if (name.length < 3) { setGroupMsg('Nazwa grupy: min. 3 znaki.'); return; }
+      try { const gid = await Cloud.createGroup(name); e.target.reset(); await loadGroups(); rk.group = gid; rk.scope = 'group'; renderRank(); setGroupMsg('Grupa założona ✓ Kliknij „Zaproś”, aby wysłać link znajomym.', true); }
+      catch (err) { setGroupMsg(err.message); }
+    });
+    $('#groupJoin').addEventListener('submit', async e => {
+      e.preventDefault(); const code = e.target.code.value.trim(); setGroupMsg('');
+      if (!code) return; await tryJoin(code); e.target.reset();
+    });
+    $('#groupList').addEventListener('click', async e => {
+      const inv = e.target.closest('[data-ginvite]'), del = e.target.closest('[data-gdel]'), lv = e.target.closest('[data-gleave]');
+      const g = rk.groups.find(x => x.id === (inv || del || lv)?.dataset[inv ? 'ginvite' : del ? 'gdel' : 'gleave']);
+      if (!g) return;
+      try {
+        if (inv) await shareInvite(g);
+        if (del && confirm(`Usunąć grupę „${g.name}” dla wszystkich ${g.members} członków?`)) { await Cloud.deleteGroup(g.id); await loadGroups(); renderRank(); toast('Grupa usunięta'); }
+        if (lv && confirm(`Opuścić grupę „${g.name}”?`)) { await Cloud.leaveGroup(g.id); await loadGroups(); renderRank(); toast('Opuszczono grupę'); }
+      } catch (err) { setGroupMsg(err.message); }
+    });
+  }
+
+  // link zaproszenia: #join=KOD
+  function checkJoinLink() {
+    const m = location.hash.match(/^#join=([A-Za-z0-9]{4,12})$/);
+    if (!m) return false;
+    history.replaceState(null, '', '#rank');
+    if (Cloud.user) tryJoin(m[1]);
+    else { rk.pendingJoin = m[1]; toast('Zaloguj się, aby dołączyć do grupy'); setView('account'); }
+    return true;
+  }
+
   // ------------------------------------------------------------------ nawigacja i zdarzenia
   function setView(v) {
     state.view = v;
@@ -725,6 +930,8 @@
   }
   function renderView() {
     if (state.view === 'account') { renderAccount(); return; }
+    if (state.view === 'rank') { renderRank(); return; }
+    if (state.view === 'premium') { renderPremium(); return; }
     if (!state.data.lotto) return;
     ({ home: renderHome, gen: renderGen, stats: renderStats, bets: renderBets, more: () => {} })[state.view]();
   }
@@ -750,10 +957,14 @@
     // generator
     $('#methodChips').addEventListener('click', e => {
       const c = e.target.closest('.chip'); if (!c) return;
+      if (c.dataset.method === 'trend' && !requirePremium('Model trendu')) return;
       state.method = c.dataset.method; renderGen();
     });
     $('#cntMinus').addEventListener('click', () => { state.count = Math.max(1, state.count - 1); $('#cntVal').textContent = state.count; });
-    $('#cntPlus').addEventListener('click', () => { state.count = Math.min(10, state.count + 1); $('#cntVal').textContent = state.count; });
+    $('#cntPlus').addEventListener('click', () => {
+      if (state.count >= LIMITS.setsPerClick && !isPremium()) { requirePremium(`Więcej niż ${LIMITS.setsPerClick} zestawy na raz`); return; }
+      state.count = Math.min(10, state.count + 1); $('#cntVal').textContent = state.count;
+    });
     $('#filterList').addEventListener('change', e => {
       const k = e.target.dataset.filter; if (!k) return;
       state.filters[k] = e.target.checked; store.set('lotto2.filters', state.filters);
@@ -766,8 +977,12 @@
     });
     $('#genResults').addEventListener('click', e => {
       const s = e.target.closest('[data-save]');
-      if (s) { const g = state.lastGen[+s.dataset.save]; addBet(g.nums, g.method); g.saved = true; renderGenResults(); toast('Zapisano zakład ✓'); }
+      if (s) {
+        if (!canAddBets(1)) return;
+        const g = state.lastGen[+s.dataset.save]; addBet(g.nums, g.method); g.saved = true; renderGenResults(); toast('Zapisano zakład ✓');
+      }
       if (e.target.id === 'saveAll') {
+        if (!canAddBets(state.lastGen.filter(g => !g.saved).length)) return;
         let n = 0; state.lastGen.forEach(g => { if (!g.saved) { addBet(g.nums, g.method); g.saved = true; n++; } });
         renderGenResults(); toast(n ? `Zapisano ${n} zakładów ✓` : 'Wszystkie już zapisane');
       }
@@ -786,12 +1001,21 @@
       rest.forEach(n => state.picked.add(n)); renderPicker();
     });
     $('#pickSave').addEventListener('click', () => {
+      if (!canAddBets(1)) return;
       addBet([...state.picked].sort((a, b) => a - b), 'manual'); state.picked.clear(); renderPicker(); toast('Zapisano zakład ✓');
     });
 
     // statystyki
-    $('#rangeChips').addEventListener('click', e => { const c = e.target.closest('.chip'); if (!c) return; state.range = +c.dataset.range; renderStats(); });
-    $('#heatMode').addEventListener('click', e => { const c = e.target.closest('.seg-btn'); if (!c) return; state.heatMode = c.dataset.mode; renderStats(); });
+    $('#rangeChips').addEventListener('click', e => {
+      const c = e.target.closest('.chip'); if (!c) return;
+      if (c.hasAttribute('data-premium') && !requirePremium('Statystyki z dłuższego okresu')) return;
+      state.range = +c.dataset.range; renderStats();
+    });
+    $('#heatMode').addEventListener('click', e => {
+      const c = e.target.closest('.seg-btn'); if (!c) return;
+      if (c.hasAttribute('data-premium') && !requirePremium('Mapa modelu')) return;
+      state.heatMode = c.dataset.mode; renderStats();
+    });
     $('#heat').addEventListener('click', e => { const c = e.target.closest('.cell'); if (c) heatDetail(+c.dataset.n); });
 
     // zakłady
@@ -805,7 +1029,7 @@
       if (d && confirm('Usunąć ten zakład?')) { state.bets = state.bets.filter(b => b.id !== d.dataset.del); saveBets(); Cloud.remove(d.dataset.del); renderBets(); }
       if (a) {
         const b = state.bets.find(x => x.id === a.dataset.again);
-        if (b) {
+        if (b && canAddBets(1)) {
           const nb = { ...b, id: uid(), t: new Date().toISOString(), played: false, synced: false };
           state.bets.unshift(nb); saveBets(); Cloud.push(nb); renderBets(); toast('Dodano na najbliższe losowanie ✓');
         }
@@ -838,13 +1062,16 @@
   }
 
   // ------------------------------------------------------------------ start
-  const VIEWS = ['home', 'gen', 'stats', 'bets', 'more', 'account'];
+  const VIEWS = ['home', 'gen', 'stats', 'bets', 'rank', 'more', 'account', 'premium'];
   document.title = (window.APP_CONFIG && window.APP_CONFIG.name) || document.title;
   bind();
   bindAccount();
+  bindRank();
+  decoratePremium();
   const startView = location.hash.slice(1);
   if (VIEWS.includes(startView)) setView(startView);
   window.addEventListener('hashchange', () => {
+    if (checkJoinLink()) return;
     const v = location.hash.slice(1);
     if (v !== state.view && VIEWS.includes(v)) setView(v);
   });
@@ -857,7 +1084,7 @@
         const line = $('#syncLine'); if (line) line.textContent = syncLabel();
         const b = $('#accountBtn'); if (b) b.classList.toggle('warn', !!(s.user && s.pending));
       },
-    }).then(renderAccountButton).catch(e => console.warn('Cloud init:', e));
+    }).then(() => { renderAccountButton(); checkJoinLink(); }).catch(e => console.warn('Cloud init:', e));
   }
   tickCountdown(); setInterval(() => {
     tickCountdown();
