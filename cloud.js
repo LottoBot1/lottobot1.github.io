@@ -85,11 +85,19 @@ window.Cloud = (() => {
     const { error } = await sb.auth.updateUser({ password });
     if (error) throw new Error(plError(error));
   }
+  // Wylogowanie musi działać ZAWSZE – także bez internetu i przy zawieszonym zapytaniu.
   async function signOut() {
-    await flush();
-    const { error } = await sb.auth.signOut();
-    if (error && !isNetErr(error)) throw new Error(plError(error));
-    saveQ([]); lastSync = null; status();
+    // daj maks. 3 s na wysłanie zaległych zmian, potem wyloguj niezależnie od wyniku
+    await Promise.race([flush().catch(() => {}), new Promise(r => setTimeout(r, 3000))]);
+    try {
+      // scope 'local' usuwa sesję z tego urządzenia bez czekania na serwer
+      await Promise.race([sb.auth.signOut({ scope: 'local' }), new Promise(r => setTimeout(r, 2000))]);
+    } catch (e) { console.warn('signOut:', e); }
+    // twarde czyszczenie, gdyby biblioteka nie usunęła sesji (np. błąd sieci)
+    try { Object.keys(localStorage).filter(k => k.startsWith('typer.auth')).forEach(k => localStorage.removeItem(k)); } catch { /* ignore */ }
+    saveQ([]); lastSync = null;
+    if (user) { user = null; handlers.auth(null, 'SIGNED_OUT'); }   // gdy biblioteka nie wysłała zdarzenia
+    status();
   }
   async function deleteAccount() {
     const { error } = await sb.rpc('delete_my_account');
