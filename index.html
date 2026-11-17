@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Lotto Analizator</title>
+  <meta name="description" content="Wyniki Lotto i Lotto Plus, statystyki, generator zakładów i weryfikacja kuponów.">
+  <meta name="theme-color" content="#0b1020" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f3f5fb" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Lotto">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-ball" aria-hidden="true">49</span>
+      <div>
+        <div class="brand-name">Lotto Analizator</div>
+        <div class="brand-sub" id="dataStatus">Ładowanie danych…</div>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <div class="seg" role="tablist" aria-label="Gra">
+        <button class="seg-btn active" data-game="lotto" role="tab">Lotto</button>
+        <button class="seg-btn" data-game="lottoplus" role="tab">Plus</button>
+      </div>
+      <button class="icon-btn" id="refreshBtn" title="Odśwież wyniki" aria-label="Odśwież wyniki">
+        <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <nav class="tabs" aria-label="Nawigacja">
+    <button class="tab active" data-view="home"><svg viewBox="0 0 24 24"><path d="M12 3 2 12h3v8h5v-6h4v6h5v-8h3z"/></svg><span>Start</span></button>
+    <button class="tab" data-view="gen"><svg viewBox="0 0 24 24"><path d="M7.5 5.6 10 7 8.6 4.5 10 2 7.5 3.4 5 2l1.4 2.5L5 7zm12 9.8L17 14l1.4 2.5L17 19l2.5-1.4L22 19l-1.4-2.5L22 14zM22 2l-2.5 1.4L17 2l1.4 2.5L17 7l2.5-1.4L22 7l-1.4-2.5zm-7.63 5.29a1 1 0 0 0-1.41 0L1.29 18.96a1 1 0 0 0 0 1.41l2.34 2.34a1 1 0 0 0 1.41 0L16.7 11.05a1 1 0 0 0 0-1.41l-2.33-2.35zm-1.03 5.49-2.12-2.12 2.44-2.44 2.12 2.12-2.44 2.44z"/></svg><span>Generator</span></button>
+    <button class="tab" data-view="stats"><svg viewBox="0 0 24 24"><path d="M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z"/></svg><span>Statystyki</span></button>
+    <button class="tab" data-view="bets"><svg viewBox="0 0 24 24"><path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm-9 14-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg><span>Zakłady</span><b class="badge" id="betsBadge" hidden></b></button>
+    <button class="tab" data-view="more"><svg viewBox="0 0 24 24"><path d="M6 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm12 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm-6 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></svg><span>Więcej</span></button>
+  </nav>
+
+  <main id="app">
+    <!-- START -->
+    <section class="view active" id="view-home">
+      <div class="card hero">
+        <div class="hero-label">Następne losowanie</div>
+        <div class="countdown" id="countdown">–</div>
+        <div class="hero-date" id="nextDrawDate"></div>
+      </div>
+      <div class="alert" id="missingAlert" hidden></div>
+      <div class="grid2">
+        <div class="card result-card" id="lastLotto"></div>
+        <div class="card result-card plus" id="lastPlus"></div>
+      </div>
+      <div class="card" id="homeBets"></div>
+      <div class="card">
+        <div class="card-head"><h2>Ostatnie losowania</h2><span class="muted" id="recentGameLabel"></span></div>
+        <div class="draw-list" id="recentDraws"></div>
+      </div>
+    </section>
+
+    <!-- GENERATOR -->
+    <section class="view" id="view-gen">
+      <div class="card">
+        <div class="card-head"><h2>Generator zakładów</h2><span class="pill" id="genGameLabel"></span></div>
+        <div class="chips" id="methodChips">
+          <button class="chip active" data-method="stat">📊 Statystyka</button>
+          <button class="chip" data-method="trend">📈 Model trendu</button>
+          <button class="chip" data-method="random">🎲 Losowo</button>
+          <button class="chip" data-method="manual">✋ Własne</button>
+        </div>
+        <p class="hint" id="methodHint"></p>
+
+        <div id="autoGen">
+          <div class="row-between">
+            <span>Liczba zestawów</span>
+            <div class="stepper">
+              <button id="cntMinus" aria-label="Mniej">−</button>
+              <output id="cntVal">3</output>
+              <button id="cntPlus" aria-label="Więcej">+</button>
+            </div>
+          </div>
+          <details class="filters">
+            <summary>Filtry kombinatoryczne <span class="muted" id="filtersCount"></span></summary>
+            <div id="filterList"></div>
+          </details>
+          <button class="btn primary big" id="genBtn">Losuj zestawy</button>
+        </div>
+
+        <div id="manualGen" hidden>
+          <p class="hint">Wybierz 6 liczb: <b id="pickCount">0</b>/6</p>
+          <div class="picker" id="picker"></div>
+          <div class="row-gap">
+            <button class="btn" id="pickClear">Wyczyść</button>
+            <button class="btn" id="pickRandomFill">Dobierz resztę</button>
+            <button class="btn primary" id="pickSave" disabled>Zapisz zakład</button>
+          </div>
+        </div>
+
+        <label class="switch-row">
+          <input type="checkbox" id="withPlus" checked>
+          <span class="switch"></span>
+          <span>Gram też w <b>Lotto Plus</b> (sprawdzaj oba losowania)</span>
+        </label>
+      </div>
+
+      <div id="genResults"></div>
+    </section>
+
+    <!-- STATYSTYKI -->
+    <section class="view" id="view-stats">
+      <div class="card">
+        <div class="card-head"><h2>Statystyki</h2><span class="pill" id="statsGameLabel"></span></div>
+        <div class="chips" id="rangeChips">
+          <button class="chip" data-range="50">50</button>
+          <button class="chip active" data-range="100">100</button>
+          <button class="chip" data-range="250">250</button>
+          <button class="chip" data-range="500">500</button>
+          <button class="chip" data-range="0">Wszystkie</button>
+        </div>
+        <p class="hint" id="rangeInfo"></p>
+        <div class="seg small" id="heatMode">
+          <button class="seg-btn active" data-mode="freq">Częstość</button>
+          <button class="seg-btn" data-mode="gap">Zaległość</button>
+          <button class="seg-btn" data-mode="trend">Model</button>
+        </div>
+        <div class="heat" id="heat"></div>
+        <div class="heat-detail" id="heatDetail">Dotknij liczby, aby zobaczyć szczegóły.</div>
+      </div>
+      <div class="grid3">
+        <div class="card"><h3>🔥 Gorące</h3><div class="balls sm" id="hotBalls"></div></div>
+        <div class="card"><h3>❄️ Zimne</h3><div class="balls sm" id="coldBalls"></div></div>
+        <div class="card"><h3>⏳ Najdłużej nie padły</h3><div class="balls sm" id="gapBalls"></div></div>
+      </div>
+      <div class="grid2">
+        <div class="card"><h3>Parzyste / nieparzyste</h3><div class="bars" id="evenBars"></div></div>
+        <div class="card"><h3>Suma liczb</h3><div class="bars" id="sumBars"></div></div>
+      </div>
+      <div class="card"><h3>Najczęstsze pary</h3><div class="pairs" id="pairs"></div></div>
+    </section>
+
+    <!-- ZAKŁADY -->
+    <section class="view" id="view-bets">
+      <div class="card">
+        <div class="card-head"><h2>Moje zakłady</h2><span class="muted" id="betsSummary"></span></div>
+        <div class="chips" id="betFilter">
+          <button class="chip active" data-f="all">Wszystkie</button>
+          <button class="chip" data-f="pending">Oczekujące</button>
+          <button class="chip" data-f="done">Rozliczone</button>
+          <button class="chip" data-f="played">Zagrane</button>
+          <button class="chip" data-f="wins">Trafione 3+</button>
+        </div>
+      </div>
+      <div id="betList"></div>
+    </section>
+
+    <!-- WIĘCEJ -->
+    <section class="view" id="view-more">
+      <div class="card">
+        <h2>Sprawdź kupon</h2>
+        <p class="hint">Wpisz 6 liczb – sprawdzę ostatnie losowania i całą historię.</p>
+        <div class="row-gap">
+          <input class="input" id="checkInput" inputmode="numeric" placeholder="np. 3 11 19 27 38 45">
+          <button class="btn primary" id="checkBtn">Sprawdź</button>
+        </div>
+        <div id="checkResult"></div>
+      </div>
+
+      <div class="card">
+        <h2>Przenieś zakłady na inne urządzenie</h2>
+        <p class="hint">Zakłady są zapisane w tej przeglądarce. Eksportuj plik i zaimportuj go na telefonie (lub odwrotnie). Import przyjmuje też stary plik <code>user_bets.csv</code> z poprzedniej wersji programu.</p>
+        <div class="row-gap">
+          <button class="btn" id="exportBtn">⬇️ Eksportuj</button>
+          <label class="btn" for="importFile">⬆️ Importuj</label>
+          <input type="file" id="importFile" accept=".json,.csv,text/csv,application/json" hidden>
+          <button class="btn" id="shareBtn">📤 Udostępnij</button>
+        </div>
+        <div id="ioMsg" class="hint"></div>
+      </div>
+
+      <div class="card">
+        <h2>Dodaj wynik ręcznie</h2>
+        <p class="hint">Na wypadek, gdyby automat jeszcze nie pobrał wyniku. Wynik ręczny zostanie zastąpiony oficjalnym, gdy ten się pojawi.</p>
+        <div class="row-gap">
+          <select class="input" id="manGame"><option value="lotto">Lotto</option><option value="lottoplus">Lotto Plus</option></select>
+          <input class="input" id="manDate" type="date">
+        </div>
+        <div class="row-gap">
+          <input class="input" id="manNums" inputmode="numeric" placeholder="6 liczb, np. 1 7 14 17 20 27">
+          <button class="btn primary" id="manAdd">Dodaj</button>
+        </div>
+        <div id="manMsg" class="hint"></div>
+      </div>
+
+      <div class="card" id="installCard">
+        <h2>Zainstaluj na telefonie</h2>
+        <p class="hint"><b>Android (Chrome):</b> menu ⋮ → „Dodaj do ekranu głównego” / „Zainstaluj aplikację”.<br>
+        <b>iPhone (Safari):</b> przycisk Udostępnij → „Do ekranu początkowego”.</p>
+        <button class="btn primary" id="installBtn" hidden>Zainstaluj teraz</button>
+      </div>
+
+      <div class="card">
+        <h2>O aplikacji</h2>
+        <p class="hint">Wyniki pobierane są automatycznie po każdym losowaniu (wt, czw, sob ok. 22:00). Źródło danych: mbnet.com.pl.</p>
+        <p class="hint">⚠️ Losowania Lotto są całkowicie losowe – żadna statystyka ani model nie zwiększa szansy wygranej (6 z 49 to 1 do 13 983 816). Filtry pomagają co najwyżej unikać popularnych kombinacji, by ewentualną wygraną dzielić z mniejszą liczbą osób. Graj odpowiedzialnie, 18+.</p>
+        <button class="btn danger" id="wipeBtn">Usuń wszystkie zakłady z tego urządzenia</button>
+      </div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>

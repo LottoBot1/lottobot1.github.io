@@ -1,0 +1,62 @@
+# Automatyczna aktualizacja wyników + publikacja aplikacji na GitHub Pages.
+# Losowania: wtorek, czwartek, sobota o 22:00 czasu polskiego
+# (= 21:00 UTC zimą, 20:00 UTC latem). Sprawdzamy kilka razy po losowaniu
+# i jeszcze raz następnego dnia rano/południe – na wypadek opóźnień źródła.
+name: Aktualizacja wyników i publikacja
+
+on:
+  schedule:
+    - cron: "40 21 * * 2,4,6"   # wt/czw/sob 21:40 UTC
+    - cron: "30 22 * * 2,4,6"   # wt/czw/sob 22:30 UTC
+    - cron: "30 23 * * 2,4,6"   # wt/czw/sob 23:30 UTC
+    - cron: "15 5 * * 3,5,0"    # śr/pt/nd 05:15 UTC
+    - cron: "0 12 * * *"        # codziennie 12:00 UTC (zapas)
+  push:
+    branches: [main]
+  workflow_dispatch: {}          # przycisk "Run workflow" w zakładce Actions
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  update-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Pobierz najnowsze wyniki
+        run: python scripts/update_data.py
+
+      - name: Zapisz zmiany w repozytorium
+        run: |
+          if [ -n "$(git status --porcelain data)" ]; then
+            git config user.name  "lotto-bot"
+            git config user.email "lotto-bot@users.noreply.github.com"
+            git add data
+            git commit -m "Aktualizacja wyników $(date -u +'%Y-%m-%d %H:%M') UTC"
+            git push
+          else
+            echo "Brak nowych wyników."
+          fi
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
