@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <title>Lotto Analizator</title>
-  <meta name="description" content="Wyniki Lotto i Lotto Plus, statystyki, generator zakładów i weryfikacja kuponów.">
+  <title>Typer49</title>
+  <meta name="description" content="Typer49 – wyniki gier 6/49, statystyki, generator zestawów i automatyczne sprawdzanie Twoich kuponów.">
   <meta name="theme-color" content="#0b1020" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#f3f5fb" media="(prefers-color-scheme: light)">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Lotto">
+  <meta name="apple-mobile-web-app-title" content="Typer49">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -21,7 +21,7 @@
     <div class="brand">
       <span class="brand-ball" aria-hidden="true">49</span>
       <div>
-        <div class="brand-name">Lotto Analizator</div>
+        <div class="brand-name">Typer49</div>
         <div class="brand-sub" id="dataStatus">Ładowanie danych…</div>
       </div>
     </div>
@@ -32,6 +32,9 @@
       </div>
       <button class="icon-btn" id="refreshBtn" title="Odśwież wyniki" aria-label="Odśwież wyniki">
         <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+      </button>
+      <button class="icon-btn acct-btn" id="accountBtn" title="Zaloguj się" aria-label="Konto" hidden>
+        <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9zm0 2c-3.3 0-9 1.66-9 4.95V21h18v-2.05C21 15.66 15.3 14 12 14z"/></svg>
       </button>
     </div>
   </header>
@@ -159,6 +162,11 @@
       <div id="betList"></div>
     </section>
 
+    <!-- KONTO -->
+    <section class="view" id="view-account">
+      <div class="card acct-card" id="accountBody"></div>
+    </section>
+
     <!-- WIĘCEJ -->
     <section class="view" id="view-more">
       <div class="card">
@@ -172,8 +180,8 @@
       </div>
 
       <div class="card">
-        <h2>Przenieś zakłady na inne urządzenie</h2>
-        <p class="hint">Zakłady są zapisane w tej przeglądarce. Eksportuj plik i zaimportuj go na telefonie (lub odwrotnie). Import przyjmuje też stary plik <code>user_bets.csv</code> z poprzedniej wersji programu.</p>
+        <h2>Kopia i import zakładów</h2>
+        <p class="hint">Najwygodniej <a href="#account">załóż konto</a> – zakłady same pojawią się na każdym urządzeniu. Możesz też zrobić kopię w pliku. Import przyjmuje również stary plik <code>user_bets.csv</code>.</p>
         <div class="row-gap">
           <button class="btn" id="exportBtn">⬇️ Eksportuj</button>
           <label class="btn" for="importFile">⬆️ Importuj</label>
@@ -206,7 +214,7 @@
 
       <div class="card">
         <h2>O aplikacji</h2>
-        <p class="hint">Wyniki pobierane są automatycznie po każdym losowaniu (wt, czw, sob ok. 22:00). Źródło danych: mbnet.com.pl.</p>
+        <p class="hint">Typer49 to niezależne narzędzie do analizy wyników gier liczbowych 6/49. Nie jest powiązane z Totalizatorem Sportowym; nazwy gier „Lotto” i „Lotto Plus” służą wyłącznie do ich wskazania. Wyniki pobierane są automatycznie po każdym losowaniu (wt, czw, sob ok. 22:00). Źródło danych: mbnet.com.pl. <a href="privacy.html">Zasady prywatności</a>.</p>
         <p class="hint">⚠️ Losowania Lotto są całkowicie losowe – żadna statystyka ani model nie zwiększa szansy wygranej (6 z 49 to 1 do 13 983 816). Filtry pomagają co najwyżej unikać popularnych kombinacji, by ewentualną wygraną dzielić z mniejszą liczbą osób. Graj odpowiedzialnie, 18+.</p>
         <button class="btn danger" id="wipeBtn">Usuń wszystkie zakłady z tego urządzenia</button>
       </div>
@@ -214,6 +222,9 @@
   </main>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+  <script src="cloud.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

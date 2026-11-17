@@ -1,7 +1,7 @@
 {
-  "name": "Lotto Analizator",
-  "short_name": "Lotto",
-  "description": "Wyniki Lotto i Lotto Plus, statystyki, generator i weryfikacja zakładów.",
+  "name": "Typer49",
+  "short_name": "Typer49",
+  "description": "Wyniki gier 6/49, statystyki, generator zestawów i automatyczne sprawdzanie kuponów.",
   "lang": "pl",
   "start_url": "./",
   "scope": "./",

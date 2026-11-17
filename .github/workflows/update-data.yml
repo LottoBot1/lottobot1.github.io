@@ -52,6 +52,18 @@ jobs:
             echo "Brak nowych wyników."
           fi
 
+      # Darmowy plan Supabase usypia bazę po 7 dniach bez ruchu – automat ją "budzi" przy każdym uruchomieniu.
+      - name: Podtrzymaj bazę Supabase
+        continue-on-error: true
+        run: |
+          URL=$(grep -oP "supabaseUrl:\s*'\K[^']+" config.js || true)
+          KEY=$(grep -oP "supabaseKey:\s*'\K[^']+" config.js || true)
+          if [ -n "$URL" ] && [ -n "$KEY" ]; then
+            curl -s -o /dev/null -w "Supabase: HTTP %{http_code}\n" "$URL/rest/v1/profiles?select=id&limit=1" -H "apikey: $KEY" -H "Authorization: Bearer $KEY"
+          else
+            echo "Supabase nieskonfigurowany – pomijam."
+          fi
+
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3

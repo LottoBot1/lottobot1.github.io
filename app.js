@@ -69,6 +69,7 @@
     statsCache: {},
   };
   const saveBets = () => { store.set('lotto2.bets', state.bets); renderBadge(); };
+  const Cloud = window.Cloud || { enabled: false, user: null, push() {}, remove() {} };
 
   // ------------------------------------------------------------------ dane
   async function loadGame(key) {
@@ -223,7 +224,7 @@
 
   function addBet(nums, method) {
     const bet = { id: uid(), t: new Date().toISOString(), nums, method, base: state.game, plus: $('#withPlus').checked, played: false };
-    state.bets.unshift(bet); saveBets(); return bet;
+    state.bets.unshift(bet); saveBets(); Cloud.push(bet); return bet;
   }
 
   // ------------------------------------------------------------------ weryfikacja zakładów
@@ -517,6 +518,7 @@
         return;
       }
       state.bets.push(b); keys.add(b.id); sig.add(s); added++;
+      Cloud.push(b);
     });
     state.bets.sort((a, b) => b.t.localeCompare(a.t));
     saveBets(); renderAll();
@@ -545,6 +547,174 @@
     $('#manNums').value = ''; renderAll();
   }
 
+  // ------------------------------------------------------------------ konto i synchronizacja
+  const acct = { mode: 'login', recovery: false, profile: null, syncInfo: null, busy: false };
+
+  function setAcctMsg(text, ok = false) {
+    const el = $('#acctMsg'); if (!el) return;
+    el.textContent = text || ''; el.className = 'acct-msg' + (text ? (ok ? ' ok' : ' err') : '');
+  }
+
+  function renderAccountButton() {
+    const b = $('#accountBtn'); if (!b) return;
+    b.hidden = !Cloud.enabled;
+    b.classList.toggle('on', !!Cloud.user);
+    b.title = Cloud.user ? `Konto: ${Cloud.user.email}` : 'Zaloguj się';
+  }
+
+  function syncLabel() {
+    const s = acct.syncInfo;
+    if (!s) return '';
+    if (s.online === false) return `📴 Offline – ${s.pending} zmian czeka na wysłanie`;
+    if (s.pending) return `⏳ Wysyłanie zmian (${s.pending})…`;
+    return s.lastSync ? `✓ Zsynchronizowano ${pad(s.lastSync.getHours())}:${pad(s.lastSync.getMinutes())}` : '✓ Połączono';
+  }
+
+  function renderAccount() {
+    const el = $('#accountBody');
+    if (!Cloud.enabled) { el.innerHTML = '<p class="hint">Konta nie są jeszcze włączone w tej wersji aplikacji.</p>'; return; }
+    const u = Cloud.user;
+    if (acct.recovery && u) {
+      el.innerHTML = `
+        <h2>Ustaw nowe hasło</h2>
+        <form id="pwForm" class="form">
+          <input class="input" type="password" name="pw" autocomplete="new-password" placeholder="Nowe hasło (min. 8 znaków)" required minlength="8">
+          <button class="btn primary big">Zapisz hasło</button>
+        </form><p id="acctMsg" class="acct-msg"></p>`;
+      return;
+    }
+    if (u) {
+      const nick = acct.profile?.nick || '';
+      el.innerHTML = `
+        <div class="acct-head">
+          <div class="avatar">${esc((nick || u.email || '?')[0].toUpperCase())}</div>
+          <div><b>${esc(nick || 'Bez pseudonimu')}</b><div class="muted">${esc(u.email)}</div></div>
+        </div>
+        <p class="sync-line" id="syncLine">${syncLabel()}</p>
+        <p class="hint">Twoje zakłady (${state.bets.length}) są zapisane na koncie i widoczne na każdym urządzeniu, na którym się zalogujesz.</p>
+        <button class="btn" id="syncNow">🔄 Synchronizuj teraz</button>
+
+        <h3 style="margin-top:20px">Pseudonim</h3>
+        <p class="hint">Będzie widoczny w rankingach (wkrótce). Nie podawaj imienia i nazwiska.</p>
+        <form id="nickForm" class="row-gap">
+          <input class="input" name="nick" maxlength="20" placeholder="np. SzczęśliwaSiódemka" value="${esc(nick)}">
+          <button class="btn primary">Zapisz</button>
+        </form>
+        <p id="acctMsg" class="acct-msg"></p>
+
+        <div class="row-gap" style="margin-top:18px">
+          <button class="btn" id="logoutBtn">Wyloguj</button>
+          <button class="btn" id="changePwBtn">Zmień hasło</button>
+        </div>
+        <details class="danger-zone"><summary>Usuń konto</summary>
+          <p class="hint">Trwale usuwa konto i wszystkie zakłady z chmury. Tego nie da się cofnąć. Wpisz <b>USUŃ</b>, aby potwierdzić.</p>
+          <div class="row-gap"><input class="input" id="delConfirm" placeholder="USUŃ"><button class="btn danger" id="delAccBtn">Usuń konto</button></div>
+        </details>`;
+      return;
+    }
+    const reg = acct.mode === 'register', reset = acct.mode === 'reset';
+    el.innerHTML = `
+      <div class="seg" id="acctTabs" style="margin-bottom:14px">
+        <button class="seg-btn ${!reg && !reset ? 'active' : ''}" data-mode="login">Logowanie</button>
+        <button class="seg-btn ${reg ? 'active' : ''}" data-mode="register">Nowe konto</button>
+      </div>
+      <p class="hint">${reset ? 'Podaj e-mail – wyślemy link do ustawienia nowego hasła.'
+        : reg ? 'Załóż darmowe konto, a Twoje zakłady będą bezpieczne w chmurze i dostępne na telefonie i komputerze.'
+        : 'Zaloguj się, aby mieć te same zakłady na wszystkich urządzeniach.'}</p>
+      <form id="authForm" class="form">
+        <input class="input" type="email" name="email" autocomplete="email" placeholder="Adres e-mail" required>
+        ${reset ? '' : `<input class="input" type="password" name="pw" autocomplete="${reg ? 'new-password' : 'current-password'}" placeholder="Hasło${reg ? ' (min. 8 znaków)' : ''}" required minlength="${reg ? 8 : 1}">`}
+        ${reg ? `<label class="check-row"><input type="checkbox" name="terms" required> <span>Mam ukończone 18 lat i akceptuję <a href="privacy.html" target="_blank">zasady prywatności</a>.</span></label>` : ''}
+        <button class="btn primary big">${reset ? 'Wyślij link' : reg ? 'Załóż konto' : 'Zaloguj się'}</button>
+      </form>
+      <p id="acctMsg" class="acct-msg"></p>
+      ${reg ? '' : `<button class="link-btn" id="resetLink">${reset ? '← Wróć do logowania' : 'Nie pamiętasz hasła?'}</button>`}
+      ${state.bets.length ? `<p class="hint">Masz ${state.bets.length} zakładów na tym urządzeniu – po zalogowaniu możesz je przenieść na konto.</p>` : ''}`;
+  }
+
+  async function withBusy(btn, fn) {
+    if (acct.busy) return; acct.busy = true;
+    const label = btn?.textContent; if (btn) { btn.disabled = true; btn.textContent = 'Chwileczkę…'; }
+    try { await fn(); }
+    catch (e) { setAcctMsg(e.message || String(e)); }
+    finally { acct.busy = false; if (btn && btn.isConnected) { btn.disabled = false; btn.textContent = label; } }
+  }
+
+  async function syncNow(silent = true) {
+    if (!Cloud.user) return;
+    try {
+      const merged = await Cloud.fullSync(state.bets);
+      if (merged) { state.bets = merged; saveBets(); renderAll(); }
+      if (!silent) toast('Zsynchronizowano ✓');
+    } catch (e) { if (!silent) toast(e.message); }
+  }
+
+  async function onAuth(user, event) {
+    renderAccountButton();
+    if (user) {
+      Cloud.getProfile().then(p => { acct.profile = p; if (state.view === 'account') renderAccount(); }).catch(() => {});
+      if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+        const local = state.bets.filter(b => !b.synced);
+        if (event === 'SIGNED_IN' && local.length && !store.get('typer.owner', null)) {
+          if (!confirm(`Przenieść ${local.length} zakładów z tego urządzenia na Twoje konto?`)) {
+            state.bets = state.bets.filter(b => b.synced);
+          }
+        }
+        store.set('typer.owner', user.id);
+        await syncNow(true);
+        if (event === 'SIGNED_IN' && state.view === 'account' && !acct.recovery) toast('Zalogowano ✓');
+      }
+    } else {
+      // wylogowanie: usuń dane konta z urządzenia (prywatność na wspólnych urządzeniach)
+      if (store.get('typer.owner', null)) { state.bets = []; saveBets(); store.set('typer.owner', null); }
+      acct.profile = null; acct.recovery = false;
+      renderAll();
+    }
+    if (state.view === 'account') renderAccount();
+  }
+
+  function bindAccount() {
+    $('#accountBtn').addEventListener('click', () => setView('account'));
+    const body = $('#accountBody');
+    body.addEventListener('click', e => {
+      const t = e.target;
+      if (t.closest('#acctTabs .seg-btn')) { acct.mode = t.closest('.seg-btn').dataset.mode; renderAccount(); }
+      if (t.id === 'resetLink') { acct.mode = acct.mode === 'reset' ? 'login' : 'reset'; renderAccount(); }
+      if (t.id === 'syncNow') withBusy(t, () => syncNow(false));
+      if (t.id === 'changePwBtn') { acct.recovery = true; renderAccount(); }
+      if (t.id === 'logoutBtn') withBusy(t, async () => {
+        if (Cloud.pending() && !confirm('Część zmian nie została jeszcze wysłana (brak internetu). Wylogować mimo to?')) return;
+        await Cloud.signOut(); toast('Wylogowano');
+      });
+      if (t.id === 'delAccBtn') withBusy(t, async () => {
+        if ($('#delConfirm').value.trim().toUpperCase() !== 'USUŃ') { setAcctMsg('Wpisz USUŃ, aby potwierdzić.'); return; }
+        await Cloud.deleteAccount(); toast('Konto zostało usunięte');
+      });
+    });
+    body.addEventListener('submit', e => {
+      e.preventDefault();
+      const f = e.target, btn = f.querySelector('button');
+      setAcctMsg('');
+      if (f.id === 'authForm') withBusy(btn, async () => {
+        const email = f.email.value.trim();
+        if (acct.mode === 'reset') { await Cloud.resetPassword(email); setAcctMsg('Wysłaliśmy link na ' + email + '. Sprawdź pocztę (także spam).', true); return; }
+        if (acct.mode === 'register') {
+          const r = await Cloud.signUp(email, f.pw.value);
+          if (r.needsConfirm) setAcctMsg('Prawie gotowe! Kliknij link aktywacyjny wysłany na ' + email + ', a potem zaloguj się tutaj.', true);
+          return;
+        }
+        await Cloud.signIn(email, f.pw.value);
+      });
+      if (f.id === 'pwForm') withBusy(btn, async () => {
+        await Cloud.updatePassword(f.pw.value); acct.recovery = false; renderAccount(); setAcctMsg('Hasło zostało zmienione ✓', true);
+      });
+      if (f.id === 'nickForm') withBusy(btn, async () => {
+        const nick = f.nick.value.trim();
+        await Cloud.setNick(nick); acct.profile = { ...(acct.profile || {}), nick }; renderAccount(); setAcctMsg('Zapisano pseudonim ✓', true);
+      });
+    });
+  }
+
   // ------------------------------------------------------------------ nawigacja i zdarzenia
   function setView(v) {
     state.view = v;
@@ -554,6 +724,7 @@
     if (location.hash !== '#' + v) history.replaceState(null, '', '#' + v);
   }
   function renderView() {
+    if (state.view === 'account') { renderAccount(); return; }
     if (!state.data.lotto) return;
     ({ home: renderHome, gen: renderGen, stats: renderStats, bets: renderBets, more: () => {} })[state.view]();
   }
@@ -627,14 +798,17 @@
     $('#betFilter').addEventListener('click', e => { const c = e.target.closest('.chip'); if (!c) return; state.betFilter = c.dataset.f; renderBets(); });
     $('#betList').addEventListener('change', e => {
       const id = e.target.dataset.played; if (!id) return;
-      const b = state.bets.find(x => x.id === id); if (b) { b.played = e.target.checked; saveBets(); $('#betsSummary').textContent = `${state.bets.length} zakładów · ${state.bets.filter(x => x.played).length} zagranych`; }
+      const b = state.bets.find(x => x.id === id); if (b) { b.played = e.target.checked; saveBets(); Cloud.push(b); $('#betsSummary').textContent = `${state.bets.length} zakładów · ${state.bets.filter(x => x.played).length} zagranych`; }
     });
     $('#betList').addEventListener('click', e => {
       const d = e.target.closest('[data-del]'), a = e.target.closest('[data-again]');
-      if (d && confirm('Usunąć ten zakład?')) { state.bets = state.bets.filter(b => b.id !== d.dataset.del); saveBets(); renderBets(); }
+      if (d && confirm('Usunąć ten zakład?')) { state.bets = state.bets.filter(b => b.id !== d.dataset.del); saveBets(); Cloud.remove(d.dataset.del); renderBets(); }
       if (a) {
         const b = state.bets.find(x => x.id === a.dataset.again);
-        if (b) { state.bets.unshift({ ...b, id: uid(), t: new Date().toISOString(), played: false }); saveBets(); renderBets(); toast('Dodano na najbliższe losowanie ✓'); }
+        if (b) {
+          const nb = { ...b, id: uid(), t: new Date().toISOString(), played: false, synced: false };
+          state.bets.unshift(nb); saveBets(); Cloud.push(nb); renderBets(); toast('Dodano na najbliższe losowanie ✓');
+        }
       }
     });
 
@@ -647,7 +821,9 @@
     $('#manAdd').addEventListener('click', addManualDraw);
     $('#manDate').value = isoDate(lastDrawTime());
     $('#wipeBtn').addEventListener('click', () => {
-      if (state.bets.length && confirm(`Usunąć wszystkie ${state.bets.length} zakłady z tego urządzenia? Tego nie da się cofnąć (chyba że masz eksport).`)) {
+      const where = Cloud.user ? 'z konta (na wszystkich urządzeniach)' : 'z tego urządzenia';
+      if (state.bets.length && confirm(`Usunąć wszystkie ${state.bets.length} zakłady ${where}? Tego nie da się cofnąć (chyba że masz eksport).`)) {
+        if (Cloud.user) state.bets.forEach(b => Cloud.remove(b.id));
         state.bets = []; saveBets(); renderAll(); toast('Usunięto zakłady');
       }
     });
@@ -658,17 +834,31 @@
     $('#installBtn').addEventListener('click', async () => { if (!deferred) return; deferred.prompt(); await deferred.userChoice; deferred = null; $('#installBtn').hidden = true; });
 
     // odśwież po powrocie do aplikacji (np. telefon wybudzony po losowaniu)
-    document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(false); });
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) { refresh(false); syncNow(true); } });
   }
 
   // ------------------------------------------------------------------ start
+  const VIEWS = ['home', 'gen', 'stats', 'bets', 'more', 'account'];
+  document.title = (window.APP_CONFIG && window.APP_CONFIG.name) || document.title;
   bind();
+  bindAccount();
   const startView = location.hash.slice(1);
-  if (['home', 'gen', 'stats', 'bets', 'more'].includes(startView)) setView(startView);
+  if (VIEWS.includes(startView)) setView(startView);
   window.addEventListener('hashchange', () => {
     const v = location.hash.slice(1);
-    if (v !== state.view && ['home', 'gen', 'stats', 'bets', 'more'].includes(v)) setView(v);
+    if (v !== state.view && VIEWS.includes(v)) setView(v);
   });
+  if (Cloud.init) {
+    Cloud.init({
+      auth: onAuth,
+      recovery: () => { acct.recovery = true; setView('account'); },
+      status: s => {
+        acct.syncInfo = s;
+        const line = $('#syncLine'); if (line) line.textContent = syncLabel();
+        const b = $('#accountBtn'); if (b) b.classList.toggle('warn', !!(s.user && s.pending));
+      },
+    }).then(renderAccountButton).catch(e => console.warn('Cloud init:', e));
+  }
   tickCountdown(); setInterval(() => {
     tickCountdown();
     // tuż po 22:00 w dniu losowania odświeżaj dane co 5 minut

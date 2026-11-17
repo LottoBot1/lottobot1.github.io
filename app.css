@@ -254,5 +254,25 @@ main { max-width: 1100px; margin: 0 auto; padding: 14px 16px; }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 @media (min-width: 900px) { .toast { bottom: 24px; } }
 
+/* ---------- konto ---------- */
+.acct-btn.on { background: linear-gradient(135deg, var(--accent), #5b8cff); color: #fff; border-color: transparent; }
+.acct-btn { position: relative; }
+.acct-btn.warn::after { content: ""; position: absolute; top: 6px; right: 6px; width: 8px; height: 8px; border-radius: 50%; background: var(--warn); }
+.acct-card { max-width: 520px; margin-left: auto; margin-right: auto; }
+.form { display: flex; flex-direction: column; gap: 10px; }
+.form .input { width: 100%; padding: 13px 14px; }
+.acct-msg { font-size: .9rem; margin: 10px 0 0; min-height: 1em; }
+.acct-msg.err { color: var(--bad); }
+.acct-msg.ok { color: var(--ok); }
+.check-row { display: flex; gap: 10px; align-items: flex-start; font-size: .86rem; color: var(--muted); line-height: 1.4; }
+.check-row input { margin-top: 3px; width: 18px; height: 18px; accent-color: var(--accent); flex: none; }
+a { color: var(--accent2); }
+.link-btn { background: none; border: 0; color: var(--accent2); padding: 10px 0; font-size: .9rem; text-decoration: underline; }
+.acct-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.avatar { width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 1.3rem; color: #fff; background: linear-gradient(135deg, var(--accent), var(--accent2)); }
+.sync-line { font-size: .88rem; margin: 6px 0; }
+.danger-zone { margin-top: 18px; border-top: 1px solid var(--card-b); padding-top: 10px; }
+.danger-zone summary { cursor: pointer; color: var(--bad); font-size: .9rem; padding: 6px 0; }
+
 .check-block { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--card-b); font-size: .9rem; }
 .check-block .bars { margin-top: 8px; }

@@ -1,9 +1,13 @@
 // Service worker: aplikacja działa offline, a wyniki zawsze pobierane są najpierw z sieci.
-const VERSION = 'lotto-v2.0.0';
-const SHELL = ['./', 'index.html', 'app.css', 'app.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png'];
+const VERSION = 'typer49-v2.1.0';
+const SHELL = ['./', 'index.html', 'app.css', 'app.js', 'config.js', 'cloud.js', 'privacy.html', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png'];
+const CDN = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js';
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(VERSION).then(async c => {
+    await c.addAll(SHELL);
+    try { await c.add(CDN); } catch { /* CDN niedostępny – spróbujemy przy następnym uruchomieniu */ }
+  }).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', e => {
@@ -12,7 +16,17 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
-  if (e.request.method !== 'GET' || url.origin !== location.origin) return;
+  if (e.request.method !== 'GET') return;
+
+  // Biblioteka Supabase z CDN – wersja przypięta, więc najpierw cache.
+  if (url.href === CDN) {
+    e.respondWith(caches.match(CDN).then(r => r || fetch(e.request).then(res => {
+      if (res.ok) { const copy = res.clone(); caches.open(VERSION).then(c => c.put(CDN, copy)); }
+      return res;
+    })));
+    return;
+  }
+  if (url.origin !== location.origin) return;   // API Supabase itp. – zawsze sieć, bez cache
 
   // Dane: najpierw sieć, w razie braku – ostatnia zapisana kopia.
   if (url.pathname.includes('/data/')) {
@@ -31,6 +45,6 @@ self.addEventListener('fetch', e => {
     fetch(e.request).then(res => {
       if (res.ok) { const copy = res.clone(); caches.open(VERSION).then(c => c.put(e.request, copy)); }
       return res;
-    }).catch(() => caches.match(e.request).then(r => r || caches.match('index.html')))
+    }).catch(() => caches.match(e.request, { ignoreSearch: true }).then(r => r || caches.match('index.html')))
   );
 });
