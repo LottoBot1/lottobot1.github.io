@@ -1,6 +1,14 @@
-# Lotto Analizator 2.0
+# Typer49
 
-Aplikacja webowa (PWA) do Lotto i Lotto Plus. Działa w przeglądarce na komputerze i telefonie, można ją też zainstalować jak zwykłą aplikację.
+Aplikacja webowa (PWA) do analizy gier liczbowych 6/49 (Lotto i Lotto Plus). Działa w przeglądarce na komputerze i telefonie, można ją też zainstalować jak zwykłą aplikację. Adres: <https://lottobot1.github.io/>
+
+## Konta użytkowników (Etap 1)
+
+- Logowanie e-mailem i hasłem, a zakłady synchronizują się w chmurze między urządzeniami. Aplikacja działa też offline, a zmiany wysyłają się po odzyskaniu internetu.
+- Backend: Supabase (projekt `typer49`, Europa). Schemat bazy i reguły bezpieczeństwa są w [`supabase/schema.sql`](supabase/schema.sql), a każdy użytkownik widzi tylko swoje dane.
+- `config.js` zawiera **publiczny** klucz Supabase (anon). Klucza `service_role` nigdy nie wpisujemy do kodu.
+- E-maile (potwierdzenie konta, reset hasła) wychodzą z typer49.kontakt@gmail.com przez SMTP Gmaila, uwierzytelnione hasłem aplikacji.
+- Automat GitHub raz dziennie „budzi” bazę, bo darmowy Supabase usypia projekt po 7 dniach bez ruchu.
 
 ## Co poprawiono względem wersji w Pythonie/Streamlit
 
