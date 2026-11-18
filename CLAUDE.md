@@ -1,0 +1,147 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What this is
+
+**Typer49** – a Polish-language PWA for the 6/49 number games (Lotto, Lotto Plus): results, statistics, bet generator, automatic checking of the user's bets, accounts with cloud sync, rankings and friend groups. Live at https://lottobot1.github.io/ (GitHub repo `LottoBot1/lottobot1.github.io`, Pages source = GitHub Actions). Backend is Supabase (project ref `ydntwczvpzydwqqwhmof`, EU). All user-facing text, commit messages and docs are in Polish. The owner is non-technical and communicates in Polish – the overview, parts, status and risks sections below are written in Polish for them.
+
+## Opis projektu prostymi słowami
+
+Typer49 to aplikacja dla osób grających w Lotto i Lotto Plus. Otwiera się ją w przeglądarce albo instaluje na telefonie jak zwykłą aplikację. Robi pięć rzeczy:
+
+1. **Pokazuje wyniki.** Sama pobiera wyniki każdego losowania (wtorek, czwartek, sobota ok. 22:00), więc nie trzeba ich nigdzie sprawdzać ani wpisywać.
+2. **Pokazuje statystyki.** Które liczby padają często, a które dawno nie padły, oraz jakie pary liczb się powtarzają.
+3. **Pomaga wybrać liczby.** Generator proponuje zestawy według różnych metod albo pozwala wybrać liczby samemu. Aplikacja uczciwie informuje, że żadna metoda nie zwiększa szansy wygranej.
+4. **Sprawdza Twoje kupony.** Zapisujesz zakład, a po losowaniu aplikacja sama pokazuje, ile liczb trafiłeś.
+5. **Pozwala rywalizować.** Po założeniu konta zakłady są takie same na telefonie i komputerze. Możesz pojawić się w rankingu graczy pod pseudonimem albo założyć grupę ze znajomymi i porównywać wyniki.
+
+W przyszłości część funkcji ma być płatna (Premium), a aplikacja ma trafić do sklepu Google Play.
+
+## Główne części projektu
+
+| Część | Za co odpowiada |
+|---|---|
+| **Strona aplikacji** (`index.html`, `app.css`, `app.js`) | To, co widzi użytkownik: wszystkie ekrany, generator, statystyki, lista zakładów i ich sprawdzanie. |
+| **Moduł konta** (`cloud.js`, `config.js`) | Logowanie i wysyłanie zakładów do chmury. Działa też bez internetu, bo zmiany czekają i wysyłają się później. |
+| **Tryb offline i instalacja** (`sw.js`, `manifest.webmanifest`, `icons/`) | Działanie bez internetu, ikona i nazwa na ekranie telefonu. |
+| **Dane losowań** (`data/*.json`) | Wszystkie wyniki od 1957 r. (Lotto) i od 2012 r. (Lotto Plus). |
+| **Automat na GitHubie** (`.github/workflows/`, `scripts/update_data.py`) | Po każdym losowaniu pobiera nowe wyniki, zapisuje je i publikuje stronę na nowo. Codziennie „budzi” też bazę danych. |
+| **Baza danych Supabase** (`supabase/*.sql`) | Przechowuje konta, zakłady, rankingi i grupy, pilnuje, żeby każdy widział tylko swoje dane, i sama pobiera wyniki do rankingów. |
+| **Wysyłka e-maili** (ustawienia w Supabase) | Potwierdzenie konta i reset hasła, wysyłane ze skrzynki typer49.kontakt@gmail.com. |
+| **Zasady prywatności** (`privacy.html`) | Informacje wymagane przez RODO. |
+
+## Commands
+
+There is no build step, bundler, linter or test suite – plain HTML/CSS/vanilla JS served as static files.
+
+- Local preview (needs an HTTP server; opening `index.html` from disk cannot load `data/*.json`):
+  `python -m http.server 8000` from the repo root (Python is not installed on the owner's laptop; any static server works).
+- Refresh draw data manually: `python scripts/update_data.py` (stdlib only).
+- Deploy: commit and push to `main`. `.github/workflows/update-data.yml` then updates data, pings Supabase and deploys the whole repo to Pages. The workflow itself commits to `data/`, so `git pull` before pushing. On Windows add `C:\Program Files\Git\cmd` and `C:\Program Files\GitHub CLI` to PATH first; `gh run watch <id>` to follow the deploy.
+- Database changes: SQL files in `supabase/` are applied by hand in the Supabase SQL Editor (`schema.sql` first, then `stage2.sql`). Both are idempotent – keep new migrations that way.
+- Testing SQL logic without leaving data behind: run a `do $$ … $$` block that inserts fake `auth.users`, switches identity with `set_config('request.jwt.claims', json_build_object('sub', <uuid>, 'role','authenticated')::text, true)` + `execute 'set local role authenticated'`, collects results into a jsonb and ends with `raise exception 'WYNIK_TESTU %', res;` – the exception rolls everything back.
+
+## Architecture
+
+### Front end (no framework)
+- Script order in `index.html` matters: `config.js` → Supabase UMD from jsDelivr (pinned `@supabase/supabase-js@2.45.4`) → `cloud.js` (`window.Cloud`) → `app.js`. The app must keep working when the CDN or Supabase is unavailable (`Cloud.enabled` false → local-only mode).
+- `app.js` is one IIFE with a single `state` object. Each screen is `<section id="view-<name>">`; `setView()`/`renderView()` dispatch by name, routing is the URL hash (`VIEWS` list), and `#join=CODE` is a group-invite link handled by `checkJoinLink()`. Views `account`, `rank`, `premium` have no draw-data dependency; others return early until data is loaded.
+- Draws come from `data/lotto.json` / `data/lottoplus.json` (`draws: [[no, "YYYY-MM-DD", [6 nums]], …]`), merged with user-entered manual results from localStorage (`withManual`).
+- Bet settlement (`evalBet`): a bet belongs to the **first scheduled draw (Tue/Thu/Sat 22:00) after its creation time**, never simply "the latest draw". The same rule is implemented server-side in `bet_results()` – change both together.
+- localStorage keys: `lotto2.*` (bets, filters, manual draws, game – legacy prefix kept on purpose so existing users keep data) and `typer.*` (auth session, sync queue, owner id).
+- `sw.js`: shell is network-first with cache fallback, `data/` network-first, the pinned Supabase CDN file cache-first. **Bump `VERSION` whenever shell files change.**
+
+### Accounts and sync (`cloud.js`)
+- Offline-first: every bet change goes to a queue (`typer.queue`) and `flush()` upserts/deletes in batches; network errors leave the queue for later.
+- `fullSync()` merge rule: a local bet without `synced` is new → upload; a local bet with `synced` missing from the cloud was deleted on another device → drop; pending queued deletes win over remote rows.
+- `signOut()` must never block (timeouts + `scope: 'local'` + manual removal of `typer.auth*`) – this fixed a real "cannot log out on phone" bug.
+- Only the public anon key lives in `config.js`; access control is entirely RLS in Postgres.
+
+### Database (Supabase)
+- `bets` (PK `user_id,id`), `profiles` (auto-created by trigger on `auth.users`), `draws`, `groups`, `group_members`. Every table has RLS; users only see their own bets.
+- `draws` is filled inside Postgres: pg_cron jobs `typer-draws-request` / `typer-draws-process` use pg_net to fetch the Pages JSON every 30 min (no secrets involved).
+- Ranking integrity: trigger `bets_ranked` sets `bets.ranked` – true only if the row reached the server within ±15 min of `created_at` and `nums`/`created_at` were never edited. Imported/offline/edited bets never count.
+- RPCs (security definer): `ranking(period, group)`, `my_stats`, `my_groups`, `create_group`, `join_group`, `delete_my_account`. `bet_results` is internal (no execute grant).
+- Premium: `profiles.plan` / `premium_until` are not writable by users (column grants allow only `nick`, `public_ranking`). Client gating uses `isPremium()` / `requirePremium()` / `canAddBets()` and `data-premium` attributes (crown badge). `config.js` `betaAllPremium: true` unlocks everything during the beta; `freeLimits` holds the free-plan limits.
+
+### Data pipeline
+GitHub Action cron (after Tue/Thu/Sat draws + daily) → `scripts/update_data.py` downloads `mbnet.com.pl/dl.txt` and `dl_plus.txt` (lotto.pl's API returns 403) → merges **by draw number, never by date** (old years had several draws per day; merging by date once deleted 956 draws) and refuses to write fewer draws than already stored → commits `data/` → deploys Pages → Supabase imports from Pages.
+
+## Stan projektu
+
+### Skończone i sprawdzone w działaniu
+- Wyniki pobierane automatycznie: pełna historia Lotto i Lotto Plus.
+- Statystyki, generator z filtrami, ręczny wybór liczb, sprawdzanie kuponu na całej historii.
+- Zapisywanie zakładów i rozliczanie ich z właściwym losowaniem.
+- Import starego pliku `user_bets.csv` z poprzedniej wersji programu, eksport i import kopii.
+- Instalacja na telefonie i działanie bez internetu.
+- Konta: rejestracja z potwierdzeniem e-mailem, logowanie, reset hasła, wylogowanie (także na telefonie), usuwanie konta.
+- Synchronizacja zakładów między urządzeniami.
+- Ranking globalny i grupy znajomych z zaproszeniami. Logika bazy jest przetestowana na fikcyjnych kontach, ale ranking nie był jeszcze sprawdzony na prawdziwych rozliczonych zakładach po losowaniu.
+
+### Niedokończone albo prowizoryczne
+- **Premium nie ma płatności.** Wszystko jest darmowe dzięki przełącznikowi `betaAllPremium`. Przycisk „Kup Premium” jest nieaktywny.
+- **Limity wersji darmowej działają tylko w aplikacji, nie na serwerze.** Gdy ruszą płatności, limity trzeba będzie też egzekwować w bazie, bo inaczej da się je obejść.
+- **Funkcje opisane jako „wkrótce” nie istnieją:** powiadomienia po losowaniu, systemy skrócone, bilans wydatków. Reklam też jeszcze nie ma.
+- **Nieaktualne teksty:**
+  - przy pseudonimie na ekranie konta jest napis „rankingi (wkrótce)”, a rankingi już działają;
+  - `README.md` zawiera starą instrukcję wgrywania z czasów „Lotto Analizator”: repozytorium `lotto` i adres `TWOJA-NAZWA.github.io/lotto/`.
+- **Brak regulaminu.** Jest tylko polityka prywatności, a regulamin będzie potrzebny przed płatną subskrypcją i Google Play.
+- **Tymczasowa infrastruktura:**
+  - adres `lottobot1.github.io` zamiast własnej domeny;
+  - e-maile z Gmaila (limit ok. 500 dziennie);
+  - dane z mbnet.com.pl bez oficjalnej zgody i licencji.
+- **Brak automatycznych testów.** Wszystko było sprawdzane ręcznie.
+
+## Problemy i ryzyka w kodzie
+
+- **Czas z telefonu, a nie czas polski.** Aplikacja liczy „najbliższe losowanie o 22:00” według zegara i strefy czasowej urządzenia, a baza według czasu polskiego. Ktoś za granicą albo ze źle ustawionym zegarem może zobaczyć zakład przypisany do innego losowania niż w rankingu. Zły zegar (ponad 15 min różnicy) sprawia też, że zakład po cichu nie liczy się do rankingu.
+- **Sztywny terminarz losowań.** Dni (wt/czw/sob) i godzina 22:00 są wpisane na stałe. Gdy losowanie zostanie przesunięte lub odwołane (np. święta), aplikacja i baza mogą przypisać zakład do różnych losowań. Aplikacja kieruje się terminarzem, a baza faktycznie odbytymi losowaniami.
+- **Jedno źródło wyników.** Jeśli mbnet.com.pl zmieni format, adres albo zablokuje automat, wyniki przestaną się aktualizować. Skrypt nie usunie danych, ale nowych nie będzie. Źródło działa też tylko przez nieszyfrowane `http`.
+- **Wpisane na stałe adresy.**
+  - Baza pobiera wyniki z `lottobot1.github.io`, więc zmiana adresu strony (np. własna domena) przerwie import, dopóki nie zmieni się SQL.
+  - Krok „budzenia” bazy w automacie odczytuje klucz z `config.js` prostym wzorcem tekstowym, więc zmiana formatu tego pliku go zepsuje.
+- **Wydajność przy dużej liczbie użytkowników.**
+  - Ranking jest liczony od zera przy każdym wyświetleniu, przez przejrzenie wszystkich zakładów wszystkich graczy.
+  - Każdy zapis zakładu liczy wszystkie zakłady użytkownika (limit 5000).
+  - Aplikacja przy każdym powrocie na ekran pobiera z chmury wszystkie zakłady.
+  
+  Przy kilkuset osobach to nie problem, przy tysiącach będzie wolno.
+- **Konflikty między urządzeniami.** Gdy ten sam zakład zostanie zmieniony na dwóch urządzeniach (np. „Zagrany”), wygrywa zmiana wysłana później, bez ostrzeżenia.
+- **Bezpieczeństwo HTML.** Ekrany są budowane z tekstu (`innerHTML`, 38 miejsc w `app.js`). Dane od użytkowników (pseudonimy, nazwy grup) są zabezpieczane funkcją `esc()`. Każda nowa funkcja, która o tym zapomni, otworzy lukę.
+- **Kody zaproszeń** mają 8 znaków i nie ma limitu prób dołączenia. Odgadnięcie kodu jest bardzo mało prawdopodobne, ale technicznie możliwe przy masowych próbach.
+- **Zależności, które mogą się zestarzeć.**
+  - Biblioteka Supabase jest przypięta do starszej wersji 2.45.4.
+  - Używany jest „starszy” typ klucza (anon JWT), a Supabase zaleca nowe klucze „publishable”. Jeśli wyłączy stare, logowanie przestanie działać do czasu podmiany klucza.
+- **Ciche awarie e-maili.** Zmiana hasła do skrzynki typer49.kontakt@gmail.com unieważnia hasło aplikacji i e-maile przestają wychodzić. Nikt nie dostaje o tym ostrzeżenia.
+- **Darmowy plan Supabase** usypia bazę po 7 dniach bez ruchu i ma limity. Chroni przed tym codzienny automat, więc gdy automat GitHuba przestanie działać, baza zaśnie.
+- **Ryzyka prawne przy zarabianiu:** znak towarowy „Lotto”, ograniczenia reklamy gier hazardowych, licencja na dane. Szczegóły są w zasadach projektu poniżej.
+
+## Project rules
+
+- Keep the public project anonymous: commit as `lotto-bot <lotto-bot@users.noreply.github.com>` (set in the repo's git config) and never put the owner's real name or personal GitHub username into code, commits or docs.
+- Don't use "Lotto" as the product name or imitate Totalizator Sportowy branding (trademark); game names are used only descriptively.
+- Never claim the app improves the chance of winning (store policy and consumer law); keep the 18+/responsible-gaming notes.
+- E-mails go through custom SMTP (Gmail app password, entered by the owner). Security-related Supabase settings (e.g. "Confirm email") are the owner's decision – don't change them.
+- Planned next: Stage 3 – Android app via TWA in Google Play, Play Billing for Premium, push notifications after draws.
+
+## Cele i plan pracy
+
+### Cel
+Projekt zaczął się jako hobby i nauka, teraz ma stać się źródłem zarobku. Celem jest jak najwięcej użytkowników. Właściciel ma ok. 10 h tygodniowo i jest gotów na rozsądne wydatki (domena, konto Google Play, porada prawna).
+
+### Kolejność prac (nie przeskakuj etapów bez zgody właściciela)
+1. Poprawka czasu: rozliczanie zakładów zawsze według czasu polskiego (Europe/Warsaw), niezależnie od strefy i zegara urządzenia, zgodnie z logiką bazy (`bet_results`). Ostrzeżenie dla użytkownika, gdy zegar urządzenia jest przestawiony o więcej niż 15 min. Do tej logiki powstaje automatyczny test.
+2. Szybkie poprawki: napis „rankingi (wkrótce)”, przestarzały README.md.
+3. Ostrzeżenia o awariach: właściciel dostaje e-mail, gdy przez ponad 3 dni nie przyjdą nowe wyniki, gdy automat GitHuba się wysypie lub gdy przestaną wychodzić e-maile.
+4. Nowe funkcje, każda osobno: powiadomienia po losowaniu, bilans wydatków, systemy skrócone.
+5. Wydajność przed promocją: ranking, zapis zakładów i synchronizacja przy tysiącach użytkowników.
+6. Google Play i płatności Premium – dopiero gdy właściciel potwierdzi, że kwestie prawne (znak „Lotto”, reklama gier, licencja na dane) są zamknięte w osobnym projekcie.
+
+### Zasady współpracy z właścicielem
+- Przed każdą zmianą zrób commit, żeby można było wrócić.
+- Jedna zmiana na raz. Po każdej napisz prostymi słowami po polsku, co zrobiłeś i jak to sprawdzić.
+- Zanim zmienisz logikę rozliczania zakładów, rankingu albo bazę danych, opisz plan i poczekaj na zgodę.
+- Gdy trzeba coś wykonać w Supabase (SQL Editor, ustawienia), podaj właścicielowi instrukcję krok po kroku: gdzie kliknąć, co wkleić i co powinien zobaczyć.
+- Gdy czegoś nie da się zrobić bez decyzji właściciela, zapytaj, zamiast zgadywać.
