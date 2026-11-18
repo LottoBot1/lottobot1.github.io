@@ -1,4 +1,4 @@
-/* Lotto Analizator 2.0 – aplikacja webowa (PWA), działa na komputerze i telefonie. */
+/* Typer49 – aplikacja webowa (PWA), działa na komputerze i telefonie. */
 (() => {
   'use strict';
 
@@ -6,8 +6,10 @@
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const GAMES = { lotto: 'Lotto', lottoplus: 'Lotto Plus' };
-  const DRAW_DAYS = [2, 4, 6];      // wtorek, czwartek, sobota (JS: 0 = niedziela)
-  const DRAW_HOUR = 22;
+  const TT = window.TyperTime;      // czas polski – time.js
+  const DRAW_DAYS = TT.DRAW_DAYS;   // wtorek, czwartek, sobota (0 = niedziela)
+  const DRAW_HOUR = TT.DRAW_HOUR;
+  const PL = '(czas polski)';
   const DAY_NAMES = ['niedziela', 'poniedziałek', 'wtorek', 'środa', 'czwartek', 'piątek', 'sobota'];
 
   const store = {
@@ -18,11 +20,10 @@
   const pad = n => String(n).padStart(2, '0');
   const isoDate = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   const parseISO = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
-  const drawTimeOf = s => { const d = parseISO(s); d.setHours(DRAW_HOUR, 0, 0, 0); return d; };
   const fmtDate = s => { const d = parseISO(s); return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`; };
   const fmtShort = s => { const d = parseISO(s); return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}`; };
   const dayName = s => DAY_NAMES[parseISO(s).getDay()];
-  const fmtDT = iso => { const d = new Date(iso); return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+  const fmtDT = iso => TT.formatDateTime(new Date(iso));     // data i godzina w czasie polskim
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   const sum = a => a.reduce((x, y) => x + y, 0);
@@ -112,18 +113,9 @@
   }
 
   // ------------------------------------------------------------------ terminarz losowań
-  function nextDrawTime(from = new Date()) {
-    for (let i = 0; i < 8; i++) {
-      const d = new Date(from); d.setDate(d.getDate() + i); d.setHours(DRAW_HOUR, 0, 0, 0);
-      if (DRAW_DAYS.includes(d.getDay()) && d > from) return d;
-    }
-  }
-  function lastDrawTime(from = new Date()) {
-    for (let i = 0; i < 8; i++) {
-      const d = new Date(from); d.setDate(d.getDate() - i); d.setHours(DRAW_HOUR, 0, 0, 0);
-      if (DRAW_DAYS.includes(d.getDay()) && d <= from) return d;
-    }
-  }
+  // Zawsze według czasu polskiego (time.js) – niezależnie od strefy urządzenia. Zwracają {date: 'RRRR-MM-DD', time: Date}.
+  const nextDrawTime = (from = new Date()) => TT.nextScheduledDraw(from);
+  const lastDrawTime = (from = new Date()) => TT.lastScheduledDraw(from);
 
   // ------------------------------------------------------------------ statystyki
   function stats(key, range) {
@@ -228,13 +220,12 @@
   }
 
   // ------------------------------------------------------------------ weryfikacja zakładów
+  // Ta sama zasada co bet_results w bazie: pierwsze losowanie, które faktycznie się odbyło po zapisaniu zakładu.
   function evalBet(b) {
-    const created = new Date(b.t);
-    const target = nextDrawTime(new Date(created.getTime() - 1));       // pierwsze losowanie po utworzeniu
-    const date = isoDate(target);
-    if (new Date() < target) return { status: 'pending', date, target };
-    const L = drawByDate('lotto', date), P = b.plus ? drawByDate('lottoplus', date) : null;
-    if (!L) return { status: 'waiting', date, target };
+    const t = TT.targetDraw(new Date(b.t), draws('lotto'), new Date());
+    const date = t.date, target = t.time;
+    if (t.status !== 'done') return { status: t.status, date, target };
+    const L = t.draw, P = b.plus ? drawByDate('lottoplus', date) : null;
     const hit = d => d ? d.nums.filter(n => b.nums.includes(n)) : null;
     const hl = hit(L), hp = hit(P);
     const best = Math.max(hl.length, hp ? hp.length : 0);
@@ -246,7 +237,7 @@
   // ------------------------------------------------------------------ render: START
   function renderHome() {
     const now = new Date(), next = nextDrawTime(now);
-    $('#nextDrawDate').textContent = `${DAY_NAMES[next.getDay()]}, ${pad(next.getDate())}.${pad(next.getMonth() + 1)}.${next.getFullYear()} o ${DRAW_HOUR}:00`;
+    $('#nextDrawDate').textContent = `${dayName(next.date)}, ${fmtDate(next.date)} o ${DRAW_HOUR}:00 ${PL}`;
 
     const resultCard = (key, el) => {
       const d = draws(key).at(-1);
@@ -258,7 +249,7 @@
     resultCard('lottoplus', $('#lastPlus'));
 
     // czy wynik ostatniego losowania już jest?
-    const last = lastDrawTime(now), lastIso = isoDate(last), latest = draws('lotto').at(-1);
+    const lastS = lastDrawTime(now), last = lastS.time, lastIso = lastS.date, latest = draws('lotto').at(-1);
     const alert = $('#missingAlert');
     if (latest && latest.date < lastIso) {
       const mins = Math.round((now - last) / 60000);
@@ -289,7 +280,7 @@
   }
 
   function tickCountdown() {
-    const now = new Date(), next = nextDrawTime(now);
+    const now = new Date(), next = nextDrawTime(now).time;
     let s = Math.max(0, Math.floor((next - now) / 1000));
     const d = Math.floor(s / 86400); s %= 86400;
     const h = Math.floor(s / 3600); s %= 3600;
@@ -339,7 +330,7 @@
             <div class="gen-meta">suma ${sum(g.nums)} · parzyste ${g.nums.filter(n => n % 2 === 0).length}${g.ok ? '' : ' · ⚠️ nie spełnia wszystkich filtrów'}</div></div>
           ${g.saved ? '<span class="status win">Zapisano ✓</span>' : `<button class="btn sm" data-save="${i}">Zapisz</button>`}
         </div>`).join('')}
-      <p class="hint">Zapisane zakłady zostaną sprawdzone po losowaniu ${DAY_NAMES[next.getDay()]} ${pad(next.getDate())}.${pad(next.getMonth() + 1)}.</p>
+      <p class="hint">Zapisane zakłady zostaną sprawdzone po losowaniu ${dayName(next.date)} ${fmtShort(next.date)}, ${DRAW_HOUR}:00 ${PL}.</p>
     </div>`;
   }
 
@@ -407,7 +398,7 @@
     const SHOW = 60;
     $('#betList').innerHTML = list.slice(0, SHOW).map(({ b, e }) => {
       let status, res = '';
-      if (e.status === 'pending') status = `<span class="status wait">⏳ ${fmtShort(e.date)} 22:00</span>`;
+      if (e.status === 'pending') status = `<span class="status wait">⏳ oczekuje</span>`;
       else if (e.status === 'waiting') status = `<span class="status wait">⌛ czekam na wyniki</span>`;
       else {
         const cls = e.best >= 5 ? 'big' : e.best >= 3 ? 'win' : '';
@@ -418,7 +409,7 @@
       const hitSet = e.status === 'done' ? new Set([...(e.hl || []), ...(e.hp || [])]) : null;
       return `<div class="card bet" data-id="${b.id}">
         <div class="bet-top">
-          <div class="bet-info">${METHOD_LABEL[b.method] || esc(b.method)}${b.plus ? ' · z Plusem' : ''}<br>utworzony ${fmtDT(b.t)} · losowanie ${dayName(e.date).slice(0, 3)}. ${fmtDate(e.date)}</div>
+          <div class="bet-info">${METHOD_LABEL[b.method] || esc(b.method)}${b.plus ? ' · z Plusem' : ''}<br>utworzony ${fmtDT(b.t)} ${PL}<br>losowanie ${dayName(e.date).slice(0, 3)}. ${fmtDate(e.date)}, ${DRAW_HOUR}:00 ${PL}</div>
           ${status}
         </div>
         ${balls(b.nums, 'sm', hitSet)}
@@ -569,7 +560,7 @@
     if (!s) return '';
     if (s.online === false) return `📴 Offline – ${s.pending} zmian czeka na wysłanie`;
     if (s.pending) return `⏳ Wysyłanie zmian (${s.pending})…`;
-    return s.lastSync ? `✓ Zsynchronizowano ${pad(s.lastSync.getHours())}:${pad(s.lastSync.getMinutes())}` : '✓ Połączono';
+    return s.lastSync ? `✓ Zsynchronizowano ${TT.formatTime(s.lastSync)} ${PL}` : '✓ Połączono';
   }
 
   function renderAccount() {
@@ -939,7 +930,7 @@
     $$('.topbar .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.game === state.game));
     if (!state.data.lotto) return;
     const latest = draws('lotto').at(-1), upd = state.data.lotto.updated;
-    $('#dataStatus').textContent = latest ? `Wyniki do ${fmtDate(latest.date)}${upd ? ' · pobrano ' + fmtDT(upd) : ''}` : 'Brak danych';
+    $('#dataStatus').textContent = latest ? `Wyniki do ${fmtDate(latest.date)}${upd ? ' · pobrano ' + fmtDT(upd) + ' ' + PL : ''}` : 'Brak danych';
     renderBadge(); renderView();
   }
 
@@ -1043,7 +1034,7 @@
     $('#importFile').addEventListener('change', e => { const f = e.target.files[0]; if (f) importFile(f); e.target.value = ''; });
     $('#shareBtn').addEventListener('click', shareBets);
     $('#manAdd').addEventListener('click', addManualDraw);
-    $('#manDate').value = isoDate(lastDrawTime());
+    $('#manDate').value = lastDrawTime().date;
     $('#wipeBtn').addEventListener('click', () => {
       const where = Cloud.user ? 'z konta (na wszystkich urządzeniach)' : 'z tego urządzenia';
       if (state.bets.length && confirm(`Usunąć wszystkie ${state.bets.length} zakłady ${where}? Tego nie da się cofnąć (chyba że masz eksport).`)) {
@@ -1089,8 +1080,8 @@
   tickCountdown(); setInterval(() => {
     tickCountdown();
     // tuż po 22:00 w dniu losowania odświeżaj dane co 5 minut
-    const now = new Date();
-    if (DRAW_DAYS.includes(now.getDay()) && now.getHours() >= 22 && now.getSeconds() === 0 && now.getMinutes() % 5 === 0) refresh(false);
+    const p = TT.parts(new Date());   // czas polski
+    if (DRAW_DAYS.includes(p.wd) && p.h >= DRAW_HOUR && p.s === 0 && p.mi % 5 === 0) refresh(false);
   }, 1000);
   refresh(false);
 
