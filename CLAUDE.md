@@ -33,22 +33,24 @@ W przyszłości część funkcji ma być płatna (Premium), a aplikacja ma trafi
 
 ## Commands
 
-There is no build step, bundler, linter or test suite – plain HTML/CSS/vanilla JS served as static files.
+There is no build step, bundler or linter – plain HTML/CSS/vanilla JS served as static files.
+
+- Tests: `node --test tests/*.test.js` (Node's built-in runner; pass the files – Node 22 rejects a bare `tests/` folder). Single test: `node --test --test-name-pattern "zmiana czasu" tests/time.test.js`. Node is not installed on the owner's laptop – tests run on GitHub Actions on every push to any branch, in 6 time zones (`TZ=...`). Push a work branch to run tests without publishing.
 
 - Local preview (needs an HTTP server; opening `index.html` from disk cannot load `data/*.json`):
   `python -m http.server 8000` from the repo root (Python is not installed on the owner's laptop; any static server works).
 - Refresh draw data manually: `python scripts/update_data.py` (stdlib only).
-- Deploy: commit and push to `main`. `.github/workflows/update-data.yml` then updates data, pings Supabase and deploys the whole repo to Pages. The workflow itself commits to `data/`, so `git pull` before pushing. On Windows add `C:\Program Files\Git\cmd` and `C:\Program Files\GitHub CLI` to PATH first; `gh run watch <id>` to follow the deploy.
+- Deploy: commit and push to `main`. `.github/workflows/update-data.yml` has three jobs: `test`, `update-data` (main only, never blocked by tests) and `deploy` (main only). When tests pass, the current commit is published and saved as branch `last-good`; when they fail, `last-good` code is published with the fresh `data/` and the run fails, so GitHub e-mails the owner. The workflow itself commits to `data/`, so `git pull` before pushing. On Windows add `C:\Program Files\Git\cmd` and `C:\Program Files\GitHub CLI` to PATH first; `gh run watch <id>` to follow the deploy.
 - Database changes: SQL files in `supabase/` are applied by hand in the Supabase SQL Editor (`schema.sql` first, then `stage2.sql`). Both are idempotent – keep new migrations that way.
 - Testing SQL logic without leaving data behind: run a `do $$ … $$` block that inserts fake `auth.users`, switches identity with `set_config('request.jwt.claims', json_build_object('sub', <uuid>, 'role','authenticated')::text, true)` + `execute 'set local role authenticated'`, collects results into a jsonb and ends with `raise exception 'WYNIK_TESTU %', res;` – the exception rolls everything back.
 
 ## Architecture
 
 ### Front end (no framework)
-- Script order in `index.html` matters: `config.js` → Supabase UMD from jsDelivr (pinned `@supabase/supabase-js@2.45.4`) → `cloud.js` (`window.Cloud`) → `app.js`. The app must keep working when the CDN or Supabase is unavailable (`Cloud.enabled` false → local-only mode).
+- Script order in `index.html` matters: `config.js` → Supabase UMD from jsDelivr (pinned `@supabase/supabase-js@2.45.4`) → `cloud.js` (`window.Cloud`) → `time.js` (`window.TyperTime`) → `app.js`. The app must keep working when the CDN or Supabase is unavailable (`Cloud.enabled` false → local-only mode).
 - `app.js` is one IIFE with a single `state` object. Each screen is `<section id="view-<name>">`; `setView()`/`renderView()` dispatch by name, routing is the URL hash (`VIEWS` list), and `#join=CODE` is a group-invite link handled by `checkJoinLink()`. Views `account`, `rank`, `premium` have no draw-data dependency; others return early until data is loaded.
 - Draws come from `data/lotto.json` / `data/lottoplus.json` (`draws: [[no, "YYYY-MM-DD", [6 nums]], …]`), merged with user-entered manual results from localStorage (`withManual`).
-- Bet settlement (`evalBet`): a bet belongs to the **first scheduled draw (Tue/Thu/Sat 22:00) after its creation time**, never simply "the latest draw". The same rule is implemented server-side in `bet_results()` – change both together.
+- All time logic is in `time.js` and always uses Polish time (Europe/Warsaw via `Intl`, with an EU DST fallback), never the device time zone. Bet settlement (`evalBet` → `TyperTime.targetDraw`): a bet belongs to the **first draw actually present in the data whose 22:00 Warsaw time is strictly after the bet's creation**; only while that draw is not in the data does the Tue/Thu/Sat schedule decide (`pending` / `waiting`). This mirrors `bet_results()` in the database – change both together, and keep `tests/time.test.js` in sync. Every displayed clock time carries the suffix `(czas polski)` (`PL` constant).
 - localStorage keys: `lotto2.*` (bets, filters, manual draws, game – legacy prefix kept on purpose so existing users keep data) and `typer.*` (auth session, sync queue, owner id).
 - `sw.js`: shell is network-first with cache fallback, `data/` network-first, the pinned Supabase CDN file cache-first. **Bump `VERSION` whenever shell files change.**
 
@@ -73,7 +75,8 @@ GitHub Action cron (after Tue/Thu/Sat draws + daily) → `scripts/update_data.py
 ### Skończone i sprawdzone w działaniu
 - Wyniki pobierane automatycznie: pełna historia Lotto i Lotto Plus.
 - Statystyki, generator z filtrami, ręczny wybór liczb, sprawdzanie kuponu na całej historii.
-- Zapisywanie zakładów i rozliczanie ich z właściwym losowaniem.
+- Zapisywanie zakładów i rozliczanie ich z właściwym losowaniem, zawsze według czasu polskiego, niezależnie od strefy urządzenia. Zasada jest taka sama w aplikacji i w bazie. Przy wdrożeniu (18.11.2026) żaden z 10 zapisanych zakładów nie zmienił losowania. Godziny w aplikacji mają dopisek „(czas polski)”.
+- Automatyczne testy logiki czasu (14 testów × 6 stref czasowych) na GitHubie przy każdej zmianie. Nieudane testy blokują publikację kodu, ale nie aktualizację wyników.
 - Import starego pliku `user_bets.csv` z poprzedniej wersji programu, eksport i import kopii.
 - Instalacja na telefonie i działanie bez internetu.
 - Konta: rejestracja z potwierdzeniem e-mailem, logowanie, reset hasła, wylogowanie (także na telefonie), usuwanie konta.
@@ -92,12 +95,13 @@ GitHub Action cron (after Tue/Thu/Sat draws + daily) → `scripts/update_data.py
   - adres `lottobot1.github.io` zamiast własnej domeny;
   - e-maile z Gmaila (limit ok. 500 dziennie);
   - dane z mbnet.com.pl bez oficjalnej zgody i licencji.
-- **Brak automatycznych testów.** Wszystko było sprawdzane ręcznie.
+- **Automatyczne testy obejmują tylko logikę czasu.** Reszta (synchronizacja, ranking w aplikacji, generator) jest sprawdzana ręcznie.
+- **Etap 1, krok 2 jeszcze nie zrobiony:** ostrzeżenie o przestawionym zegarze urządzenia i korekta czasu zakładu według czasu serwera.
 
 ## Problemy i ryzyka w kodzie
 
-- **Czas z telefonu, a nie czas polski.** Aplikacja liczy „najbliższe losowanie o 22:00” według zegara i strefy czasowej urządzenia, a baza według czasu polskiego. Ktoś za granicą albo ze źle ustawionym zegarem może zobaczyć zakład przypisany do innego losowania niż w rankingu. Zły zegar (ponad 15 min różnicy) sprawia też, że zakład po cichu nie liczy się do rankingu.
-- **Sztywny terminarz losowań.** Dni (wt/czw/sob) i godzina 22:00 są wpisane na stałe. Gdy losowanie zostanie przesunięte lub odwołane (np. święta), aplikacja i baza mogą przypisać zakład do różnych losowań. Aplikacja kieruje się terminarzem, a baza faktycznie odbytymi losowaniami.
+- **Przestawiony zegar urządzenia.** Strefa czasowa jest już obsłużona (czas polski), ale godzinę zapisania zakładu nadal podaje zegar urządzenia. Zegar przestawiony o ponad 15 min sprawia, że zakład po cichu nie liczy się do rankingu i może trafić do złego losowania. Rozwiąże to krok 2 Etapu 1.
+- **Terminarz losowań (wt/czw/sob 22:00) jest wpisany na stałe.** Rozliczanie opiera się na losowaniach, które faktycznie są w danych, więc odwołane lub przesunięte losowanie nie psuje przypisania. Terminarz decyduje tylko o odliczaniu i o statusie „oczekuje”, a przy przesuniętym losowaniu przez chwilę może pokazać zły termin. Gdyby losowanie odbyło się o innej godzinie niż 22:00, przypisanie zakładów zapisanych w tym czasie mogłoby się różnić od rzeczywistego.
 - **Jedno źródło wyników.** Jeśli mbnet.com.pl zmieni format, adres albo zablokuje automat, wyniki przestaną się aktualizować. Skrypt nie usunie danych, ale nowych nie będzie. Źródło działa też tylko przez nieszyfrowane `http`.
 - **Wpisane na stałe adresy.**
   - Baza pobiera wyniki z `lottobot1.github.io`, więc zmiana adresu strony (np. własna domena) przerwie import, dopóki nie zmieni się SQL.
