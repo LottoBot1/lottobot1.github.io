@@ -1,5 +1,5 @@
 // Testy logiki czasu polskiego (time.js).
-// Uruchomienie: node --test tests/
+// Uruchomienie: node --test tests/*.test.js
 // Automat na GitHubie uruchamia je w kilku strefach czasowych (TZ=...), bo wynik
 // NIE może zależeć od strefy urządzenia.
 'use strict';

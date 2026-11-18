@@ -51,7 +51,7 @@ jobs:
           fail=0
           for tz in Europe/Warsaw UTC Europe/London America/New_York Asia/Tokyo Australia/Sydney; do
             echo "::group::Strefa urządzenia: $tz"
-            TZ="$tz" node --test tests/ || fail=1
+            TZ="$tz" node --test tests/*.test.js || fail=1
             echo "::endgroup::"
           done
           if [ "$fail" != 0 ]; then echo "::error::Testy nie przeszły – nowy kod NIE zostanie opublikowany."; exit 1; fi
