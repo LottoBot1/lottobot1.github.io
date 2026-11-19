@@ -14,9 +14,11 @@ window.Cloud = (() => {
   const saveQ = q => { try { localStorage.setItem(QKEY, JSON.stringify(q)); } catch { /* brak miejsca */ } };
 
   const toRow = b => ({ id: b.id, created_at: b.t, nums: b.nums, method: String(b.method || 'manual').slice(0, 20),
-    base: b.base === 'lottoplus' ? 'lottoplus' : 'lotto', plus: !!b.plus, played: !!b.played, updated_at: new Date().toISOString() });
+    base: b.base === 'lottoplus' ? 'lottoplus' : 'lotto', plus: !!b.plus, played: !!b.played,
+    prize: b.prize != null ? b.prize : null, updated_at: new Date().toISOString() });   // kwota wygranej (bilans), kolumna z etap4_bilans.sql
   const fromRow = r => ({ id: r.id, t: new Date(r.created_at).toISOString(), nums: r.nums.map(Number).sort((a, b) => a - b),
-    method: r.method, base: r.base, plus: r.plus, played: r.played, synced: true });
+    method: r.method, base: r.base, plus: r.plus, played: r.played,
+    ...(r.prize != null ? { prize: Number(r.prize) } : {}), synced: true });
 
   const isNetErr = e => !e || /fetch|network|Failed|timeout|ECONN|offline/i.test(String(e.message || e)) || e.status === 0;
 

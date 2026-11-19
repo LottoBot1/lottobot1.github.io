@@ -4,7 +4,7 @@
 // NIGDY nie wpisuj tu klucza "service_role" / "secret".
 window.APP_CONFIG = {
   name: 'Typer49',
-  // W okresie testów wszystkie funkcje Premium są darmowe. Po uruchomieniu płatności (Etap 3) → false.
+  // W okresie testów wszystkie funkcje Premium są darmowe. Po uruchomieniu płatności (Etap 6) → false.
   betaAllPremium: true,
   freeLimits: { pendingBets: 10, setsPerClick: 3 },
   supabaseUrl: 'https://ydntwczvpzydwqqwhmof.supabase.co',

@@ -41,17 +41,18 @@ There is no build step, bundler or linter – plain HTML/CSS/vanilla JS served a
   `python -m http.server 8000` from the repo root (Python is not installed on the owner's laptop; any static server works).
 - Refresh draw data manually: `python scripts/update_data.py` (stdlib only).
 - Deploy: commit and push to `main`. `.github/workflows/update-data.yml` has three jobs: `test`, `update-data` (main only, never blocked by tests) and `deploy` (main only). When tests pass, the current commit is published and saved as branch `last-good`; when they fail, `last-good` code is published with the fresh `data/` and the run fails, so GitHub e-mails the owner. The workflow itself commits to `data/`, so `git pull` before pushing. On Windows add `C:\Program Files\Git\cmd` and `C:\Program Files\GitHub CLI` to PATH first; `gh run watch <id>` to follow the deploy.
-- Database changes: SQL files in `supabase/` are applied by hand in the Supabase SQL Editor (`schema.sql` first, then `stage2.sql`). Both are idempotent – keep new migrations that way.
+- Database changes: SQL files in `supabase/` are applied by hand in the Supabase SQL Editor (`schema.sql` first, then `stage2.sql`, then `etap4_bilans.sql`; `*_test.sql` files are rollback-only tests). Both are idempotent – keep new migrations that way.
 - Testing SQL logic without leaving data behind: run a `do $$ … $$` block that inserts fake `auth.users`, switches identity with `set_config('request.jwt.claims', json_build_object('sub', <uuid>, 'role','authenticated')::text, true)` + `execute 'set local role authenticated'`, collects results into a jsonb and ends with `raise exception 'WYNIK_TESTU %', res;` – the exception rolls everything back.
 
 ## Architecture
 
 ### Front end (no framework)
-- Script order in `index.html` matters: `config.js` → Supabase UMD from jsDelivr (pinned `@supabase/supabase-js@2.45.4`) → `cloud.js` (`window.Cloud`) → `time.js` (`window.TyperTime`) → `app.js`. The app must keep working when the CDN or Supabase is unavailable (`Cloud.enabled` false → local-only mode).
+- Script order in `index.html` matters: `config.js` → Supabase UMD from jsDelivr (pinned `@supabase/supabase-js@2.45.4`) → `cloud.js` (`window.Cloud`) → `time.js` (`window.TyperTime`) → `bilans.js` (`window.TyperBilans`) → `app.js`. The app must keep working when the CDN or Supabase is unavailable (`Cloud.enabled` false → local-only mode).
 - `app.js` is one IIFE with a single `state` object. Each screen is `<section id="view-<name>">`; `setView()`/`renderView()` dispatch by name, routing is the URL hash (`VIEWS` list), and `#join=CODE` is a group-invite link handled by `checkJoinLink()`. Views `account`, `rank`, `premium` have no draw-data dependency; others return early until data is loaded.
 - Draws come from `data/lotto.json` / `data/lottoplus.json` (`draws: [[no, "YYYY-MM-DD", [6 nums]], …]`), merged with user-entered manual results from localStorage (`withManual`).
 - All time logic is in `time.js` and always uses Polish time (Europe/Warsaw via `Intl`, with an EU DST fallback), never the device time zone. Bet settlement (`evalBet` → `TyperTime.targetDraw`): a bet belongs to the **first draw actually present in the data whose 22:00 Warsaw time is strictly after the bet's creation**; only while that draw is not in the data does the Tue/Thu/Sat schedule decide (`pending` / `waiting`). This mirrors `bet_results()` in the database – change both together, and keep `tests/time.test.js` in sync. Every displayed clock time carries the suffix `(czas polski)` (`PL` constant).
 - Device clock: app.js never reads `new Date()` for "now"; it uses `now()` = device clock + offset. `syncClock()` measures the offset with a `HEAD manifest.webmanifest?clock=…` request (`cache: 'no-store'`; the service worker ignores HEAD and `?clock`) from the `Date` + `Age` headers and the request duration (`TyperTime.measureOffset`). The offset is saved in `typer.clock` and used offline for at most 24 h (`activeOffset`), then the device clock. Bet time `t` is stored already corrected, so the `bets_ranked` ±15 min check passes even on a wrong device clock. Yellow banner `#clockWarn` above 15 min, with OS-specific instructions (`devicePlatform`). Tests: `tests/clock.test.js`.
+- Spending balance (`bilans.js`, free for everyone – responsible gaming): only bets with `played` count. Price (`CENY`) and the fixed 3-hit prize (`TROJKA`) are tables keyed by the **date of the draw the bet belongs to** (from `TT.targetDraw`), not the calendar day of the bet – the 2026 price change happened at 22:10 on 18.08 (first 5 zł draw 20.08). A new price = a new row in the table. Amounts are summed in grosze. `b.prize` (zł, optional) is the user's own amount and overrides the suggestion; suggestion only for exactly 3 Lotto hits with <3 in Plus, 4–6 and Plus wins need manual entry. `prize` syncs via `bets.prize` (`supabase/etap4_bilans.sql`); it does not affect `ranked`. Tests: `tests/bilans.test.js`.
 - localStorage keys: `lotto2.*` (bets, filters, manual draws, game – legacy prefix kept on purpose so existing users keep data) and `typer.*` (auth session, sync queue, owner id).
 - `sw.js`: shell is network-first with cache fallback, `data/` network-first, the pinned Supabase CDN file cache-first. **Bump `VERSION` whenever shell files change.**
 
@@ -91,13 +92,14 @@ GitHub Action cron (after Tue/Thu/Sat draws + daily) → `scripts/update_data.py
 ### Niedokończone albo prowizoryczne
 - **Premium nie ma płatności.** Wszystko jest darmowe dzięki przełącznikowi `betaAllPremium`. Przycisk „Kup Premium” jest nieaktywny.
 - **Limity wersji darmowej działają tylko w aplikacji, nie na serwerze.** Gdy ruszą płatności, limity trzeba będzie też egzekwować w bazie, bo inaczej da się je obejść.
-- **Funkcje opisane jako „wkrótce” nie istnieją:** powiadomienia po losowaniu, systemy skrócone, bilans wydatków. Reklam też jeszcze nie ma.
+- **Bilans wydatków (Etap 4, krok 1) – gotowy, jeszcze nieopublikowany.** Karta „💰 Bilans” na ekranie Zakłady: wydane, wygrane i bilans za miesiąc, rok i od początku. Liczą się tylko zakłady „Zagrany”. Ceny zależą od daty losowania (2 zł, 3 zł od 9.10.2009, 5 zł od losowania 20.08.2026, Plus +1 zł). Przy trójce aplikacja podpowiada 24 zł / 35 zł, inne wygrane wpisuje się ręcznie. Przed publikacją trzeba uruchomić w Supabase `etap4_bilans_test.sql` i `etap4_bilans.sql`. Data zmiany ceny z 2009 r. (9.10) pochodzi od właściciela – źródła potwierdzają tylko październik 2009.
+- **Funkcje opisane jako „wkrótce” nie istnieją:** powiadomienia po losowaniu, systemy skrócone. Reklam też jeszcze nie ma.
 - **Brak regulaminu.** Jest tylko polityka prywatności, a regulamin będzie potrzebny przed płatną subskrypcją i Google Play.
 - **Tymczasowa infrastruktura:**
   - adres `lottobot1.github.io` zamiast własnej domeny;
   - e-maile z Gmaila (limit ok. 500 dziennie);
   - dane z mbnet.com.pl bez oficjalnej zgody i licencji.
-- **Automatyczne testy obejmują tylko logikę czasu, zegar urządzenia i progi alarmów Strażnika.** Reszta (synchronizacja, ranking w aplikacji, generator) jest sprawdzana ręcznie.
+- **Automatyczne testy obejmują tylko logikę czasu, zegar urządzenia, bilans wydatków i progi alarmów Strażnika.** Reszta (synchronizacja, ranking w aplikacji, generator) jest sprawdzana ręcznie.
 - **Korekta zegara bez internetu jest przybliżona.** Gdy ktoś przestawi zegar bez internetu, aplikacja do 24 h liczy według starego pomiaru. Po połączeniu z internetem od razu mierzy na nowo.
 
 ## Problemy i ryzyka w kodzie
@@ -145,7 +147,8 @@ Punkty poniżej to **Etap 1–6**. Tylko tak nazywamy etapy w rozmowach, commita
 - **Etap 1** ✅ (zrobione 18–19.11.2026) Poprawka czasu: rozliczanie zakładów zawsze według czasu polskiego (Europe/Warsaw), niezależnie od strefy i zegara urządzenia, zgodnie z logiką bazy (`bet_results`). Ostrzeżenie dla użytkownika, gdy zegar urządzenia jest przestawiony o więcej niż 15 min. Do tej logiki powstaje automatyczny test.
 - **Etap 2** ✅ (zrobione 19.11.2026) Szybkie poprawki: napis „rankingi (wkrótce)”, przestarzały README.md, ekran Premium bez wzmianek o Google Play (aplikacja działa też na iPhonie).
 - **Etap 3** ✅ (19.11.2026 – skonfigurowany, próbny alarm dotarł e-mailem) Ostrzeżenia o awariach: właściciel dostaje e-mail, gdy przez ponad 3,5 dnia nie przyjdą nowe wyniki, gdy automat GitHuba się wysypie lub stanie, gdy baza przestanie pobierać wyniki lub gdy przestanie działać hasło do Gmaila. Rozwiązanie: Strażnik + healthchecks.io (szczegóły w „Monitoring”).
-- **Etap 4** Nowe funkcje, każda osobno: powiadomienia po losowaniu, bilans wydatków, systemy skrócone.
+- **Etap 4** Nowe funkcje, każda osobno: bilans wydatków (krok 1 – w trakcie, 19.11.2026), systemy skrócone, powiadomienia po losowaniu.
+  - Ceny i wygrane zmieniają się rzadko: przy kolejnej zmianie dopisz linijkę w tabelach `CENY` / `TROJKA` w `bilans.js` (data = pierwsze losowanie po nowej cenie) i test w `tests/bilans.test.js`.
 - **Etap 5** Wydajność przed promocją: ranking, zapis zakładów i synchronizacja przy tysiącach użytkowników.
 - **Etap 6** Google Play (aplikacja na Androida przez TWA) i płatności Premium (Play Billing) – dopiero gdy właściciel potwierdzi, że kwestie prawne (znak „Lotto”, reklama gier, licencja na dane) są zamknięte w osobnym projekcie.
 

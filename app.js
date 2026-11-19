@@ -7,6 +7,7 @@
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const GAMES = { lotto: 'Lotto', lottoplus: 'Lotto Plus' };
   const TT = window.TyperTime;      // czas polski – time.js
+  const TB = window.TyperBilans;    // bilans wydatków – bilans.js
   const DRAW_DAYS = TT.DRAW_DAYS;   // wtorek, czwartek, sobota (0 = niedziela)
   const DRAW_HOUR = TT.DRAW_HOUR;
   const PL = '(czas polski)';
@@ -106,6 +107,7 @@
     range: 100,
     heatMode: 'freq',
     betFilter: 'all',
+    bilansPeriod: store.get('lotto2.bilansPeriod', 'month'),
     filters: Object.assign({ hist: true, sum: true, even: true, high: true, decades: true, endings: true, seq: true }, store.get('lotto2.filters', {})),
     picked: new Set(),
     lastGen: [],
@@ -432,6 +434,7 @@
     });
     const played = state.bets.filter(b => b.played).length;
     $('#betsSummary').textContent = `${state.bets.length} zakładów · ${played} zagranych`;
+    renderBilans();
 
     if (!list.length) {
       $('#betList').innerHTML = `<div class="card empty">${state.bets.length ? 'Brak zakładów dla tego filtra.' : 'Brak zakładów. Wygeneruj je w zakładce Generator albo zaimportuj ze starego programu (Więcej → Importuj).'}</div>`;
@@ -456,6 +459,7 @@
         </div>
         ${balls(b.nums, 'sm', hitSet)}
         ${res}
+        ${prizeField(b, e)}
         <div class="bet-actions">
           <label class="switch-row"><input type="checkbox" data-played="${b.id}" ${b.played ? 'checked' : ''}><span class="switch"></span><span>Zagrany</span></label>
           <button class="btn sm" data-again="${b.id}" title="Zagraj te same liczby w następnym losowaniu">↻ Ponów</button>
@@ -463,6 +467,56 @@
         </div>
       </div>`;
     }).join('') + (list.length > SHOW ? `<p class="hint" style="text-align:center">Pokazano ${SHOW} z ${list.length}. Zawęź filtrem.</p>` : '');
+  }
+
+  // ------------------------------------------------------------------ bilans wydatków (darmowy dla wszystkich)
+  const zlInput = v => v.toFixed(2).replace('.', ',').replace(/,00$/, '');
+
+  function prizeField(b, e) {
+    if (!b.played || e.status !== 'done' || e.best < 3) return '';
+    const sug = TB.suggestedPrize(e.date, e.hl.length, e.hp ? e.hp.length : null);
+    const own = b.prize != null;
+    const value = own ? zlInput(b.prize) : sug ? zlInput(sug / 100) : '';
+    const note = own ? 'kwota wpisana przez Ciebie – wyczyść pole, aby wrócić do podpowiedzi'
+      : sug ? `podpowiedź: stała wygrana za trójkę (${TB.fmtZl(sug)}) – możesz ją zmienić`
+      : 'wpisz kwotę wygranej – wygrane za 4, 5 i 6 trafień (i w Plusie) są różne w każdym losowaniu';
+    return `<div class="prize-row${own || sug ? '' : ' need'}">
+        <label>Wygrana <input type="text" inputmode="decimal" autocomplete="off" maxlength="14" data-prize="${b.id}" value="${value}" placeholder="kwota"> zł</label>
+        <span class="muted">${note}</span>
+      </div>`;
+  }
+
+  function bilansEntries() {
+    return state.bets.filter(b => b.played).map(b => {
+      const e = evalBet(b), done = e.status === 'done';
+      return { played: true, plus: !!b.plus, date: e.date, done, prize: b.prize,
+        hl: done ? e.hl.length : 0, hp: done && e.hp ? e.hp.length : null };
+    });
+  }
+
+  function renderBilans() {
+    const el = $('#bilans'); if (!el) return;
+    const p = state.bilansPeriod;
+    const r = TB.summarize(bilansEntries(), p, TT.dateISO(now()));
+    const label = { month: 'w tym miesiącu', year: 'w tym roku', all: 'od początku' }[p];
+    const notes = [];
+    if (r.missing) notes.push(`⚠️ ${r.missing} ${r.missing === 1 ? 'wygrana' : 'wygranych'} bez wpisanej kwoty – uzupełnij przy zakładzie (filtr „Trafione 3+”).`);
+    if (r.pending) notes.push(`⏳ ${r.pending} ${r.pending === 1 ? 'zakład czeka' : 'zakładów czeka'} na losowanie – koszt już jest wliczony.`);
+    if (r.suggested) notes.push(`ℹ️ ${r.suggested} × stała wygrana za trójkę z podpowiedzi – sprawdź na kuponie.`);
+    el.innerHTML = `
+      <div class="card-head"><h2>💰 Bilans</h2><span class="muted">${r.count} zagranych ${label}</span></div>
+      <div class="seg small" id="bilansPeriod">
+        ${[['month', 'Ten miesiąc'], ['year', 'Ten rok'], ['all', 'Od początku']].map(([k, t]) =>
+          `<button class="seg-btn${k === p ? ' active' : ''}" data-period="${k}">${t}</button>`).join('')}
+      </div>
+      <div class="bilans-grid">
+        <div><span class="muted">Wydane</span><b>${TB.fmtZl(r.spent)}</b></div>
+        <div><span class="muted">Wygrane</span><b>${TB.fmtZl(r.won)}</b></div>
+        <div class="${r.balance < 0 ? 'neg' : r.balance > 0 ? 'pos' : ''}"><span class="muted">Bilans</span><b>${TB.fmtZl(r.balance, true)}</b></div>
+      </div>
+      ${r.count ? '' : '<p class="hint">Liczą się tylko zakłady oznaczone jako „Zagrany”. Zaznacz je przy zakładzie.</p>'}
+      ${notes.map(n => `<p class="hint">${n}</p>`).join('')}
+      <p class="hint resp">🔞 Gra tylko dla osób pełnoletnich. Graj za kwoty, których stratę możesz zaakceptować – w grach liczbowych na dłuższą metę więcej się wydaje, niż wygrywa. Ceny: Lotto ${TB.fmtZl(TB.betCost(TT.dateISO(now()), false))}, Plus +${TB.fmtZl(TB.betCost(TT.dateISO(now()), true) - TB.betCost(TT.dateISO(now()), false))} (dla starszych zakładów – cena z dnia losowania).</p>`;
   }
 
   function renderBadge() {
@@ -540,7 +594,8 @@
       if (/^\s*[{[]/.test(text)) {
         const j = JSON.parse(text);
         incoming = (Array.isArray(j) ? j : j.bets || []).filter(b => Array.isArray(b.nums) && b.nums.length === 6 && b.t)
-          .map(b => ({ id: b.id || uid(), t: b.t, nums: b.nums.map(Number).sort((x, y) => x - y), method: b.method || 'import', base: b.base || 'lotto', plus: !!b.plus, played: !!b.played }));
+          .map(b => ({ id: b.id || uid(), t: b.t, nums: b.nums.map(Number).sort((x, y) => x - y), method: b.method || 'import', base: b.base || 'lotto', plus: !!b.plus, played: !!b.played,
+            ...(b.prize != null && !Number.isNaN(TB.parsePrize(b.prize)) ? { prize: TB.parsePrize(b.prize) } : {}) }));
       } else incoming = importOldCSV(text);
     } catch (e) { $('#ioMsg').textContent = '❌ Nie rozpoznano pliku: ' + e.message; return; }
     const keys = new Set(state.bets.map(b => b.id)), sig = new Set(state.bets.map(b => b.t.slice(0, 16) + b.nums.join(',')));
@@ -550,6 +605,7 @@
       if (keys.has(b.id) || sig.has(s)) {
         const ex = state.bets.find(x => x.id === b.id || x.t.slice(0, 16) + x.nums.join(',') === s);
         if (ex && b.played) ex.played = true;
+        if (ex && b.prize != null && ex.prize == null) { ex.prize = b.prize; Cloud.push(ex); }
         return;
       }
       state.bets.push(b); keys.add(b.id); sig.add(s); added++;
@@ -788,7 +844,8 @@
     ['Statystyki z 250 / 500 / wszystkich losowań', '–', '✓'],
     ['Mapa „Model”, najczęstsze pary', '–', '✓'],
     ['Powiadomienia po losowaniu (wkrótce)', '–', '✓'],
-    ['Systemy skrócone, bilans wydatków (wkrótce)', '–', '✓'],
+    ['Bilans wydatków (odpowiedzialna gra)', '✓', '✓'],
+    ['Systemy skrócone (wkrótce)', '–', '✓'],
     ['Bez reklam (gdy pojawią się reklamy)', '–', '✓'],
   ];
   function renderPremium() {
@@ -1053,9 +1110,22 @@
 
     // zakłady
     $('#betFilter').addEventListener('click', e => { const c = e.target.closest('.chip'); if (!c) return; state.betFilter = c.dataset.f; renderBets(); });
+    $('#bilans').addEventListener('click', e => {
+      const c = e.target.closest('[data-period]'); if (!c) return;
+      state.bilansPeriod = c.dataset.period; store.set('lotto2.bilansPeriod', state.bilansPeriod); renderBilans();
+    });
     $('#betList').addEventListener('change', e => {
+      const pid = e.target.dataset.prize;
+      if (pid) {
+        const b = state.bets.find(x => x.id === pid); if (!b) return;
+        const v = TB.parsePrize(e.target.value);
+        if (Number.isNaN(v)) { toast('Wpisz kwotę w złotych, np. 35 albo 120,50'); renderBets(); return; }
+        if (v == null) delete b.prize; else b.prize = v;
+        saveBets(); Cloud.push(b); renderBets();
+        return;
+      }
       const id = e.target.dataset.played; if (!id) return;
-      const b = state.bets.find(x => x.id === id); if (b) { b.played = e.target.checked; saveBets(); Cloud.push(b); $('#betsSummary').textContent = `${state.bets.length} zakładów · ${state.bets.filter(x => x.played).length} zagranych`; }
+      const b = state.bets.find(x => x.id === id); if (b) { b.played = e.target.checked; saveBets(); Cloud.push(b); renderBets(); }
     });
     $('#betList').addEventListener('click', e => {
       const d = e.target.closest('[data-del]'), a = e.target.closest('[data-again]');
@@ -1064,6 +1134,7 @@
         const b = state.bets.find(x => x.id === a.dataset.again);
         if (b && canAddBets(1)) {
           const nb = { ...b, id: uid(), t: now().toISOString(), played: false, synced: false };
+          delete nb.prize;
           state.bets.unshift(nb); saveBets(); Cloud.push(nb); renderBets(); toast('Dodano na najbliższe losowanie ✓');
         }
       }
