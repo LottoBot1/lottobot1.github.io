@@ -108,7 +108,8 @@ begin
   perform net.http_post(
     url := 'https://ydntwczvpzydwqqwhmof.supabase.co/functions/v1/powiadomienia',
     body := jsonb_build_object('mode', 'test', 'user_id', uid),
-    headers := jsonb_build_object('Content-Type', 'application/json', 'x-typer-secret', secret),
+    -- x-region: funkcja działa we Frankfurcie, jak baza (privacy.html, pkt 5)
+    headers := jsonb_build_object('Content-Type', 'application/json', 'x-typer-secret', secret, 'x-region', 'eu-central-1'),
     timeout_milliseconds := 15000);
   return 'ok';
 end $$;
