@@ -154,6 +154,26 @@ Punkty poniżej to **Etap 1–6**. Tylko tak nazywamy etapy w rozmowach, commita
 - **Etap 3** ✅ (19.11.2026 – skonfigurowany, próbny alarm dotarł e-mailem) Ostrzeżenia o awariach: właściciel dostaje e-mail, gdy przez ponad 3,5 dnia nie przyjdą nowe wyniki, gdy automat GitHuba się wysypie lub stanie, gdy baza przestanie pobierać wyniki lub gdy przestanie działać hasło do Gmaila. Rozwiązanie: Strażnik + healthchecks.io (szczegóły w „Monitoring”).
 - **Etap 4** Nowe funkcje, każda osobno: bilans wydatków (krok 1 ✅ 19.11.2026), systemy skrócone (krok 2 ✅ 19.11.2026; pomiar na iPhonie do zrobienia), powiadomienia po losowaniu (krok 3).
   - Ceny i wygrane zmieniają się rzadko: przy kolejnej zmianie dopisz linijkę w tabelach `CENY` / `TROJKA` w `bilans.js` (data = pierwsze losowanie po nowej cenie) i test w `tests/bilans.test.js`.
+  - **Krok 3 – powiadomienia po losowaniu (plan zatwierdzony przez właściciela 19.11.2026, w trakcie).**
+    - Plan:
+      - Przełącznik „Powiadomienia po losowaniu” w Więcej → Powiadomienia. Po włączeniu prośba o zgodę telefonu. Kliknięcie powiadomienia otwiera Zakłady. Przycisk „Wyślij próbne powiadomienie”.
+      - Android: przeglądarka i zainstalowana aplikacja. iPhone: tylko aplikacja na ekranie początkowym, iOS 16.4+. W Safari bez instalacji pokazać instrukcję instalacji.
+      - Baza: tabela adresów powiadomień urządzeń (każdy widzi tylko swoje) i tabela wysłanych powiadomień (bez duplikatów).
+      - Edge Function w Supabase: rozlicza zakłady tak samo jak ranking (`bet_results`), wysyła powiadomienia, usuwa martwe adresy.
+      - pg_cron: wt/czw/sob 22:00–2:00 (czas polski) co 10 min sprawdza nowe losowanie i uruchamia funkcję.
+      - Część A: baza, przełącznik i próbne powiadomienie. Część B: automatyczne powiadomienia po losowaniu – dopiero gdy A zadziała.
+      - Najpierw sprawdzić, czy biblioteka web-push działa w funkcjach Supabase; jeśli nie – powiedzieć i zaproponować inną drogę.
+    - Decyzje właściciela: tylko dla zalogowanych; darmowe dla wszystkich; liczba trafień w treści tylko przy 3+, w pozostałych przypadkach neutralnie „wyniki są, zakłady rozliczone”; bez zachęt do grania; wysyłka od razu po wynikach; `service_role` tylko wewnątrz funkcji Supabase, a funkcja przyjmuje polecenia tylko od pg_cron z hasłem z Vault. Zasada „Strażnik używa tylko klucza publicznego” zostaje.
+    - Warunki właściciela:
+      1. Przy wylogowaniu usuwać adres powiadomień tego urządzenia. Przy usuwaniu konta (`delete_my_account`) usuwać wszystkie adresy powiadomień użytkownika.
+      2. Przed udostępnieniem uzupełnić `privacy.html`: jakie dane zapisujemy (adres powiadomień urządzenia), po co, jak długo, i że powiadomienia przechodzą przez serwery Google, Apple lub Mozilli zależnie od przeglądarki. Tekst pokazać właścicielowi przed publikacją.
+      3. W treści rozróżniać zakład „Zagrany” („Twój zagrany zakład ma 3 trafienia”) od zestawu tylko zapisanego („Twój zapisany zestaw ma 3 trafienia”).
+      4. Przełącznik „Ukryj szczegóły na zablokowanym ekranie”, domyślnie wyłączony. Po włączeniu treść to tylko „Nowe wyniki w Typer49”.
+      5. W noce losowań (wt/czw/sob 22:00–2:00) baza pobiera wyniki co 10 minut zamiast co 30.
+      6. Strażnik (w części B): alarm, jeśli po losowaniu funkcja powiadomień się nie uruchomiła albo zakończyła błędem.
+      7. Próbne powiadomienie najwyżej raz na minutę na użytkownika.
+      8. Klucz prywatny VAPID pokazać właścicielowi tylko raz, z instrukcją, gdzie go wkleić w Supabase. Nie zapisywać go w żadnym pliku w repozytorium.
+      9. Część A sprawdzamy na Androidzie właściciela. **Otwarty punkt: test powiadomień na iPhonie** (właściciel nie ma teraz iPhone'a).
 - **Etap 5** Wydajność przed promocją: ranking, zapis zakładów i synchronizacja przy tysiącach użytkowników.
   - Remisy w rankingu rozstrzygać wskaźnikami na jeden zakład (np. % zakładów z trójką), żeby więcej zakładów nie dawało przewagi.
 - **Etap 6** Google Play (aplikacja na Androida przez TWA) i płatności Premium (Play Billing) – dopiero gdy właściciel potwierdzi, że kwestie prawne (znak „Lotto”, reklama gier, licencja na dane) są zamknięte w osobnym projekcie.
