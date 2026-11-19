@@ -44,7 +44,7 @@ jobs:
 
       - name: Sprawdzenie składni plików JS
         run: |
-          for f in app.js cloud.js time.js config.js sw.js; do node --check "$f" && echo "OK $f"; done
+          for f in app.js cloud.js time.js bilans.js systemy.js config.js sw.js; do node --check "$f" && echo "OK $f" || exit 1; done
 
       - name: Testy logiki czasu w różnych strefach czasowych
         run: |

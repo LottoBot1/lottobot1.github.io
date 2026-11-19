@@ -108,6 +108,10 @@
     heatMode: 'freq',
     betFilter: 'all',
     bilansPeriod: store.get('lotto2.bilansPeriod', 'month'),
+    sysPicked: new Set(),
+    sysGuar: store.get('lotto2.sysGuar', '3-4'),
+    sysResult: null,
+    sysBusy: false,
     filters: Object.assign({ hist: true, sum: true, even: true, high: true, decades: true, endings: true, seq: true }, store.get('lotto2.filters', {})),
     picked: new Set(),
     lastGen: [],
@@ -276,7 +280,7 @@
     return { status: 'done', date, target, L, P, hl, hp, best, plusMissing: b.plus && !P };
   }
 
-  const METHOD_LABEL = { stat: 'Statystyka', trend: 'Model trendu', random: 'Losowo', manual: 'Własne', ai: 'AI (stary program)', import: 'Import' };
+  const METHOD_LABEL = { stat: 'Statystyka', trend: 'Model trendu', random: 'Losowo', manual: 'Własne', system: 'System skrócony', ai: 'AI (stary program)', import: 'Import' };
 
   // ------------------------------------------------------------------ render: START
   function renderHome() {
@@ -338,14 +342,17 @@
     trend: 'Zastępuje starą sieć neuronową: liczby ważone częstością z ostatnich 300 losowań (nowsze ważą więcej) i zaległością. Lżejsze, działa w telefonie.',
     random: 'Czysty przypadek – matematycznie tak samo dobry jak każda inna metoda. Filtry nadal działają.',
     manual: 'Zaznacz własne liczby i zapisz kupon, żeby aplikacja go sprawdziła po losowaniu.',
+    system: 'System skrócony: wybierasz 7–15 liczb, a aplikacja układa z nich mniej zakładów niż system pełny, z gwarancją mniejszej wygranej, gdy część wylosowanych liczb będzie wśród Twoich.',
   };
 
   function renderGen() {
     $('#genGameLabel').textContent = `baza: ${GAMES[state.game]}`;
     $$('#methodChips .chip').forEach(c => c.classList.toggle('active', c.dataset.method === state.method));
     $('#methodHint').textContent = METHOD_HINT[state.method];
-    const manual = state.method === 'manual';
-    $('#autoGen').hidden = manual; $('#manualGen').hidden = !manual;
+    const manual = state.method === 'manual', system = state.method === 'system';
+    $('#autoGen').hidden = manual || system; $('#manualGen').hidden = !manual; $('#systemGen').hidden = !system;
+    $('#genResults').hidden = system; $('#sysResults').hidden = !system;
+    if (system) renderSystem();
     $('#cntVal').textContent = state.count;
     $('#filterList').innerHTML = FILTERS.map(([k, label]) => `
       <label class="switch-row"><input type="checkbox" data-filter="${k}" ${state.filters[k] ? 'checked' : ''}><span class="switch"></span><span>${label}</span></label>`).join('');
@@ -378,6 +385,160 @@
     </div>`;
   }
 
+  // ------------------------------------------------------------------ systemy skrócone (Premium – featureTiers.systems)
+  const TS = window.TyperSystemy;
+  const SYS_CONFIRM_GR = 100 * 100;   // system droższy niż 100 zł → okno z potwierdzeniem
+  const plural = (n, one, few, many) => n === 1 ? one : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14)) ? few : many;
+  const HITS_WORD = { 3: '3 trafienia (trójkę)', 4: '4 trafienia (czwórkę)', 5: '5 trafień (piątkę)' };
+  const guarText = (m, k) => `Gwarancja ${m} z ${k}: jeśli ${k} ${plural(k, 'wylosowana liczba', 'wylosowane liczby', 'wylosowanych liczb')} ${k >= 5 ? 'będzie' : 'będą'} wśród wybranych, co najmniej jeden zakład ma ${HITS_WORD[m]}. Gdy trafisz mniej z wybranych, gwarancji nie ma.`;
+  const sysGuar = () => { const [m, k] = state.sysGuar.split('-').map(Number); return { m, k }; };
+
+  let sysWorker = null, sysReq = 0;
+  /** Liczy system w tle (Web Worker), żeby ekran się nie zawieszał; bez Workera – w głównym wątku. */
+  function computeSystem(nums, m, k) {
+    return new Promise((resolve, reject) => {
+      const id = ++sysReq;
+      const sync = () => setTimeout(() => { try { resolve(TS.build(nums, m, k)); } catch (e) { reject(e); } }, 30);
+      if (sysWorker === null) { try { sysWorker = new Worker('systemy.js'); } catch { sysWorker = false; } }
+      if (!sysWorker) return sync();
+      const onMsg = e => {
+        if (!e.data || e.data.id !== id) return;
+        sysWorker.removeEventListener('message', onMsg);
+        e.data.ok ? resolve(e.data.result) : reject(new Error(e.data.error));
+      };
+      sysWorker.addEventListener('message', onMsg);
+      sysWorker.onerror = ev => { ev.preventDefault && ev.preventDefault(); try { sysWorker.terminate(); } catch { } sysWorker = false; sync(); };
+      sysWorker.postMessage({ id, nums, m, k });
+    });
+  }
+
+  function sysCost(count) {
+    const next = nextDrawTime(), plus = $('#withPlus').checked, each = TB.betCost(next.date, plus);
+    return { each, total: count * each, plus, next };
+  }
+
+  function renderSystem() {
+    const n = state.sysPicked.size, { m, k } = sysGuar();
+    $('#sysPicker').innerHTML = RANGE49.map(x => `<button class="pick ${state.sysPicked.has(x) ? 'on' : ''}" data-n="${x}">${x}</button>`).join('');
+    $('#sysCount').textContent = n;
+    $('#sysGuar').innerHTML = TS.GUARANTEES.map(([a, b]) =>
+      `<button class="seg-btn${state.sysGuar === a + '-' + b ? ' active' : ''}" data-g="${a}-${b}">${a} z ${b}</button>`).join('');
+    $('#sysGuarText').textContent = guarText(m, k);
+    const btn = $('#sysBuild');
+    btn.disabled = state.sysBusy || n < TS.MIN_NUMS || n > TS.MAX_NUMS;
+    btn.textContent = state.sysBusy ? 'Liczę…' : n < TS.MIN_NUMS ? `Ułóż system (wybierz jeszcze ${TS.MIN_NUMS - n})` : 'Ułóż system';
+    renderSysResults();
+  }
+
+  function renderSysResults() {
+    const el = $('#sysResults'), r = state.sysResult;
+    if (state.sysBusy) { el.innerHTML = '<div class="card"><p class="hint">⏳ Układam system i sprawdzam gwarancję na wszystkich możliwych losowaniach…</p></div>'; return; }
+    if (!r) { el.innerHTML = ''; return; }
+    if (r.error) { el.innerHTML = `<div class="card"><p class="hint">❌ ${esc(r.error)}</p></div>`; return; }
+    const n = r.bets.length, c = sysCost(n), full = sysCost(r.full), tooBig = n > TS.MAX_BETS;
+    el.innerHTML = `<div class="card sys-res">
+      <div class="card-head"><h2>System: ${r.v} liczb, ${r.m} z ${r.k}</h2><span class="status win">✓ gwarancja sprawdzona</span></div>
+      <div class="sys-cost${c.total > SYS_CONFIRM_GR ? ' high' : ''}">
+        <span class="muted">Koszt systemu${c.plus ? ' (z Plusem)' : ''}</span>
+        <b>${TB.fmtZl(c.total)}</b>
+        <span>${n} ${plural(n, 'zakład', 'zakłady', 'zakładów')} × ${TB.fmtZl(c.each)} · losowanie ${dayName(c.next.date)} ${fmtShort(c.next.date)}</span>
+      </div>
+      <p class="hint">Dla porównania system pełny z ${r.v} liczb: ${r.full} ${plural(r.full, 'zakład', 'zakłady', 'zakładów')} = ${TB.fmtZl(full.total)}.</p>
+      <p class="hint">${guarText(r.m, r.k)}</p>
+      ${tooBig
+        ? `<div class="alert">Ten system ma ${n} zakładów – więcej niż limit ${TS.MAX_BETS}. Wybierz mniej liczb albo słabszą gwarancję.</div>`
+        : `<button class="btn primary big" id="sysSave" ${r.saved ? 'disabled' : ''}>${r.saved ? 'Zapisano ✓' : `Zapisz wszystkie zakłady (${n})`}</button>`}
+      <p class="hint resp">⚠️ System skrócony nie zwiększa szansy na wygraną w przeliczeniu na wydaną złotówkę. Daje tylko pewność mniejszej wygranej, gdy wylosowane liczby znajdą się wśród Twoich. 🔞 Gra tylko dla osób pełnoletnich.</p>
+      <p class="hint">Policzono w ${(r.wall / 1000).toFixed(1).replace('.', ',')} s.</p>
+      <details class="sys-list"${n <= 20 ? ' open' : ''}><summary>Zakłady do przepisania na kupony (${n})</summary>
+        ${r.bets.map((b, i) => `<div class="gen-item"><span class="muted sys-no">${i + 1}.</span>${balls(b, 'sm')}</div>`).join('')}
+      </details>
+    </div>`;
+  }
+
+  async function buildSystem() {
+    if (!requireFeature('systems', 'Systemy skrócone')) return;
+    const nums = [...state.sysPicked].sort((a, b) => a - b), { m, k } = sysGuar();
+    state.sysBusy = true; state.sysResult = null; renderSystem();
+    const t0 = performance.now();
+    try { state.sysResult = { ...(await computeSystem(nums, m, k)), wall: performance.now() - t0 }; }
+    catch (e) { state.sysResult = { error: e.message }; }
+    state.sysBusy = false; renderSystem();
+    $('#sysResults').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  /** Okno potwierdzenia. Zwraca Promise<boolean>. html – zaufany tekst aplikacji (bez danych od użytkowników). */
+  function askConfirm(title, html, okText = 'Potwierdzam') {
+    return new Promise(resolve => {
+      const m = $('#confirmModal'), ok = $('#cmOk'), no = $('#cmCancel');
+      $('#cmTitle').textContent = title; $('#cmBody').innerHTML = html; ok.textContent = okText;
+      m.hidden = false; no.focus();
+      const done = v => { m.hidden = true; ok.onclick = no.onclick = m.onclick = m.onkeydown = null; resolve(v); };
+      ok.onclick = () => done(true);
+      no.onclick = () => done(false);
+      m.onclick = e => { if (e.target === m) done(false); };
+      m.onkeydown = e => { if (e.key === 'Escape') done(false); };
+    });
+  }
+
+  async function saveSystem() {
+    const r = state.sysResult; if (!r || r.error || r.saved) return;
+    if (!requireFeature('systems', 'Systemy skrócone')) return;
+    const n = r.bets.length; if (n > TS.MAX_BETS || !canAddBets(n)) return;
+    const c = sysCost(n);
+    if (c.total > SYS_CONFIRM_GR) {
+      const ok = await askConfirm('Potwierdź koszt systemu', `
+        <p class="modal-amount">${TB.fmtZl(c.total)}</p>
+        <p>${n} ${plural(n, 'zakład', 'zakłady', 'zakładów')} × ${TB.fmtZl(c.each)}${c.plus ? ' (z Plusem)' : ''} na losowanie ${dayName(c.next.date)} ${fmtShort(c.next.date)}.</p>
+        <p class="hint">🔞 Graj odpowiedzialnie: ustal z góry kwotę na grę i nie próbuj odgrywać strat. Żaden system nie zwiększa szansy na wygraną w przeliczeniu na wydaną złotówkę.</p>`,
+        `Tak, zapisz za ${TB.fmtZl(c.total)}`);
+      if (!ok) return;
+    }
+    const t = now().toISOString(), plus = $('#withPlus').checked;
+    const fresh = r.bets.map(nums => ({ id: uid(), t, nums: [...nums], method: 'system', base: state.game, plus, played: false }));
+    state.bets.unshift(...fresh); saveBets(); fresh.forEach(b => Cloud.push(b));
+    r.saved = true; renderSysResults(); renderBadge();
+    toast(`Zapisano ${n} ${plural(n, 'zakład', 'zakłady', 'zakładów')} ✓ – oznacz je jako „Zagrany”, gdy kupisz kupony`);
+  }
+
+  // Pomiar szybkości na telefonie: adres z ?pomiar=systemy. Tylko liczy (nic nie zapisuje).
+  async function runSystemsBenchmark() {
+    const card = document.createElement('div');
+    card.className = 'card bench';
+    card.innerHTML = `<div class="card-head"><h2>⏱ Pomiar szybkości systemów</h2><button class="btn sm" id="benchClose">Zamknij</button></div>
+      <p class="hint">Liczę wszystkie systemy (7–15 liczb × 5 gwarancji). Nie zamykaj aplikacji. To potrwa do ok. minuty.</p>
+      <p class="muted" id="benchInfo"></p><div class="bench-table" id="benchTable"></div>
+      <button class="btn primary" id="benchCopy" disabled>Kopiuj wyniki</button> <span class="muted" id="benchMsg"></span>`;
+    $('#app').prepend(card);
+    $('#benchClose').onclick = () => card.remove();
+    const ua = navigator.userAgent, os = TT.devicePlatform(ua, navigator.platform, navigator.maxTouchPoints || 0);
+    $('#benchInfo').textContent = `Urządzenie: ${os} · rdzenie: ${navigator.hardwareConcurrency || '?'} · ${ua.slice(0, 120)}`;
+    const rows = [], vs = []; for (let v = TS.MIN_NUMS; v <= TS.MAX_NUMS; v++) vs.push(v);
+    const cell = {};
+    const draw = () => {
+      $('#benchTable').innerHTML = `<table><tr><th>liczb</th>${TS.GUARANTEES.map(([m, k]) => `<th>${m} z ${k}</th>`).join('')}</tr>
+        ${vs.map(v => `<tr><td>${v}</td>${TS.GUARANTEES.map(([m, k]) => `<td>${cell[`${v}-${m}-${k}`] || '…'}</td>`).join('')}</tr>`).join('')}</table>
+        <p class="hint">W komórce: czas liczenia w sekundach / liczba zakładów.</p>`;
+    };
+    draw();
+    for (const [m, k] of TS.GUARANTEES) for (const v of vs) {
+      const nums = Array.from({ length: v }, (_, i) => i * 3 + 1), t0 = performance.now();
+      try {
+        const r = await computeSystem(nums, m, k), s = (performance.now() - t0) / 1000;
+        cell[`${v}-${m}-${k}`] = `${s.toFixed(1).replace('.', ',')} s / ${r.bets.length}`;
+        rows.push(`${v};${m}z${k};${s.toFixed(2)};${r.bets.length}`);
+      } catch (e) { cell[`${v}-${m}-${k}`] = 'błąd'; rows.push(`${v};${m}z${k};błąd;${e.message}`); }
+      draw();
+    }
+    const text = `Pomiar systemów Typer49 (${os})\n${ua}\nliczb;gwarancja;sekundy;zakładów\n${rows.join('\n')}`;
+    $('#benchMsg').textContent = 'Gotowe.';
+    const copy = $('#benchCopy'); copy.disabled = false;
+    copy.onclick = async () => {
+      try { await navigator.clipboard.writeText(text); $('#benchMsg').textContent = 'Skopiowano – wklej wyniki w rozmowie z Claude.'; }
+      catch { $('#benchMsg').textContent = 'Nie udało się skopiować – zrób zrzut ekranu tabeli.'; }
+    };
+  }
+
   // ------------------------------------------------------------------ render: STATYSTYKI
   function renderStats() {
     const st = stats(state.game, state.range);
@@ -405,7 +566,7 @@
     $('#evenBars').innerHTML = st.even.map((v, i) => bar(`${i} parz.`, v, evT)).join('');
     const suT = { arr: st.sumCnt, n: st.n };
     $('#sumBars').innerHTML = st.sumBins.map(([a, b], i) => bar(i === 0 ? `< 100` : i === st.sumBins.length - 1 ? `≥ 200` : `${a}–${b}`, st.sumCnt[i], suT)).join('');
-    $('#pairs').innerHTML = !isPremium()
+    $('#pairs').innerHTML = !hasFeature('pairs')
       ? '<button class="btn" data-goto="premium">👑 Odblokuj w Premium</button>'
       : st.topPairs.map(([a, b, c]) => `<div class="pair">${balls([a, b], 'xs')}<span class="muted">${c}×</span></div>`).join('');
     $('#heatDetail').textContent = 'Dotknij liczby, aby zobaczyć szczegóły.';
@@ -682,7 +843,7 @@
           <div><b>${esc(nick || 'Bez pseudonimu')}</b><div class="muted">${esc(u.email)}</div></div>
         </div>
         <p class="sync-line" id="syncLine">${syncLabel()}</p>
-        <p class="sync-line">Plan: <b>${isPremium() ? '👑 Premium' : 'Darmowy'}</b>${CFG.betaAllPremium ? ' (darmowy w okresie testów)' : ''} · <a href="#premium">szczegóły</a></p>
+        <p class="sync-line">Plan: <b>${isPremium() ? '👑 Premium' : 'Darmowy'}</b>${beta() ? ' (darmowy w okresie testów)' : ''}${previewFree() ? ' (podgląd jako użytkownik darmowy)' : ''} · <a href="#premium">szczegóły</a></p>
         <p class="hint">Twoje zakłady (${state.bets.length}) są zapisane na koncie i widoczne na każdym urządzeniu, na którym się zalogujesz.</p>
         <button class="btn" id="syncNow">🔄 Synchronizuj teraz</button>
 
@@ -816,23 +977,54 @@
   // ------------------------------------------------------------------ Premium
   const CFG = window.APP_CONFIG || {};
   const LIMITS = CFG.freeLimits || { pendingBets: 10, setsPerClick: 3 };
-  function isPremium() {
-    if (CFG.betaAllPremium) return true;
+  // ---- poziomy planu i dostęp do funkcji (config.js: tiers, featureTiers)
+  // Podgląd właściciela: adres z ?jako=darmowy → TYLKO na tym urządzeniu aplikacja działa jak dla
+  // użytkownika darmowego po okresie testów (betaAllPremium wyłączone). ?jako=normalnie wyłącza podgląd.
+  // Nic nie trafia do bazy i nie zmienia się u innych użytkowników.
+  // Pomiar szybkości systemów: ?pomiar=systemy (tylko liczy, nic nie zapisuje).
+  const VIEW_KEY = 'typer.viewAs';
+  let BENCH = false;
+  try {
+    const qs = new URLSearchParams(location.search), q = qs.get('jako');
+    BENCH = qs.get('pomiar') === 'systemy';
+    if (q === 'darmowy') store.set(VIEW_KEY, 'free');
+    else if (q === 'normalnie') localStorage.removeItem(VIEW_KEY);
+    if (q || BENCH) history.replaceState(null, '', location.pathname + location.hash);
+  } catch { /* brak dostępu do localStorage – podgląd po prostu nie działa */ }
+  const previewFree = () => store.get(VIEW_KEY, null) === 'free';
+  const beta = () => !!CFG.betaAllPremium && !previewFree();
+  const TIERS = Array.isArray(CFG.tiers) && CFG.tiers.length ? CFG.tiers : ['free', 'premium'];
+  const FEATURE_TIER = CFG.featureTiers || {};
+  const TIER_NAME = { premium: 'Premium', premium_plus: 'Premium Plus' };
+  const tierName = t => TIER_NAME[t] || t;
+  const tierLevel = t => Math.max(0, TIERS.indexOf(t));
+  function userTier() {
+    if (previewFree()) return TIERS[0];
+    if (CFG.betaAllPremium) return TIERS[TIERS.length - 1];
     const p = acct.profile;
-    return !!(p && p.plan === 'premium' && (!p.premium_until || new Date(p.premium_until) > new Date()));
+    if (!p || !TIERS.includes(p.plan)) return TIERS[0];
+    if (p.premium_until && new Date(p.premium_until) <= new Date()) return TIERS[0];
+    return p.plan;
   }
-  function requirePremium(what) {
-    if (isPremium()) return true;
-    toast(`👑 ${what} – funkcja Premium`);
+  /** Czy użytkownik ma funkcję (jej poziom z featureTiers ≤ poziom użytkownika). */
+  function hasFeature(f) { return tierLevel(userTier()) >= tierLevel(FEATURE_TIER[f] || TIERS[0]); }
+  function isPremium() { return tierLevel(userTier()) > 0; }
+  function requireFeature(f, what) {
+    if (hasFeature(f)) return true;
+    toast(`👑 ${what} – funkcja ${tierName(FEATURE_TIER[f])}`);
     setView('premium');
     return false;
+  }
+  function renderPreviewBar() {
+    const el = $('#previewBar'); if (!el) return;
+    el.hidden = !previewFree();
   }
   function decoratePremium() {
     $$('[data-premium]').forEach(el => {
       if (!el.querySelector('.crown')) el.insertAdjacentHTML('beforeend', '<span class="crown" title="Premium">👑</span>');
     });
     const t = $('#premiumTeaser');
-    if (t) t.textContent = CFG.betaAllPremium ? 'W okresie testów wszystko za darmo 🎉' : isPremium() ? 'Masz aktywne Premium ✓' : 'Sprawdź, co zyskujesz';
+    if (t) t.textContent = beta() ? 'W okresie testów wszystko za darmo 🎉' : isPremium() ? 'Masz aktywne Premium ✓' : 'Sprawdź, co zyskujesz';
   }
   const PREMIUM_FEATURES = [
     ['Wyniki, odliczanie, sprawdzanie kuponów', '✓', '✓'],
@@ -845,14 +1037,14 @@
     ['Mapa „Model”, najczęstsze pary', '–', '✓'],
     ['Powiadomienia po losowaniu (wkrótce)', '–', '✓'],
     ['Bilans wydatków (odpowiedzialna gra)', '✓', '✓'],
-    ['Systemy skrócone (wkrótce)', '–', '✓'],
+    ['Systemy skrócone (7–15 liczb, gwarancja 3–5 trafień)', '–', '✓'],
     ['Bez reklam (gdy pojawią się reklamy)', '–', '✓'],
   ];
   function renderPremium() {
     const prem = isPremium();
     $('#premiumBody').innerHTML = `
       <h2>👑 Typer49 Premium</h2>
-      ${CFG.betaAllPremium
+      ${beta()
         ? '<div class="alert ok">🎉 Trwają testy aplikacji – <b>wszystkie funkcje Premium są teraz darmowe</b> dla każdego. Płatna subskrypcja pojawi się po zakończeniu testów.</div>'
         : prem ? '<div class="alert ok">✓ Masz aktywne Premium. Dziękujemy!</div>' : ''}
       <table class="plan-table">
@@ -864,8 +1056,8 @@
   }
   function pendingCount() { return state.bets.filter(b => evalBet(b).status !== 'done').length; }
   function canAddBets(n = 1) {
-    if (isPremium() || pendingCount() + n <= LIMITS.pendingBets) return true;
-    requirePremium(`Limit ${LIMITS.pendingBets} oczekujących zakładów`);
+    if (hasFeature('unlimitedBets') || pendingCount() + n <= LIMITS.pendingBets) return true;
+    requireFeature('unlimitedBets', `Limit ${LIMITS.pendingBets} oczekujących zakładów`);
     return false;
   }
 
@@ -1027,6 +1219,7 @@
   }
   function renderAll() {
     $$('.topbar .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.game === state.game));
+    renderPreviewBar();
     if (!state.data.lotto) return;
     const latest = draws('lotto').at(-1), upd = state.data.lotto.updated;
     $('#dataStatus').textContent = latest ? `Wyniki do ${fmtDate(latest.date)}${upd ? ' · pobrano ' + fmtDT(upd) + ' ' + PL : ''}` : 'Brak danych';
@@ -1047,12 +1240,29 @@
     // generator
     $('#methodChips').addEventListener('click', e => {
       const c = e.target.closest('.chip'); if (!c) return;
-      if (c.dataset.method === 'trend' && !requirePremium('Model trendu')) return;
+      if (c.dataset.method === 'trend' && !requireFeature('trend', 'Model trendu')) return;
+      if (c.dataset.method === 'system' && !requireFeature('systems', 'Systemy skrócone')) return;
       state.method = c.dataset.method; renderGen();
     });
+    $('#sysPicker').addEventListener('click', e => {
+      const b = e.target.closest('.pick'); if (!b || state.sysBusy) return;
+      const n = +b.dataset.n;
+      if (state.sysPicked.has(n)) state.sysPicked.delete(n);
+      else if (state.sysPicked.size < TS.MAX_NUMS) state.sysPicked.add(n);
+      else { toast(`Najwyżej ${TS.MAX_NUMS} liczb`); return; }
+      state.sysResult = null; renderSystem();
+    });
+    $('#sysGuar').addEventListener('click', e => {
+      const b = e.target.closest('[data-g]'); if (!b || state.sysBusy) return;
+      state.sysGuar = b.dataset.g; store.set('lotto2.sysGuar', state.sysGuar); state.sysResult = null; renderSystem();
+    });
+    $('#sysClear').addEventListener('click', () => { if (state.sysBusy) return; state.sysPicked.clear(); state.sysResult = null; renderSystem(); });
+    $('#sysBuild').addEventListener('click', buildSystem);
+    $('#sysResults').addEventListener('click', e => { if (e.target.id === 'sysSave') saveSystem(); });
+    $('#withPlus').addEventListener('change', () => { if (state.method === 'system') renderSysResults(); });
     $('#cntMinus').addEventListener('click', () => { state.count = Math.max(1, state.count - 1); $('#cntVal').textContent = state.count; });
     $('#cntPlus').addEventListener('click', () => {
-      if (state.count >= LIMITS.setsPerClick && !isPremium()) { requirePremium(`Więcej niż ${LIMITS.setsPerClick} zestawy na raz`); return; }
+      if (state.count >= LIMITS.setsPerClick && !hasFeature('manySets')) { requireFeature('manySets', `Więcej niż ${LIMITS.setsPerClick} zestawy na raz`); return; }
       state.count = Math.min(10, state.count + 1); $('#cntVal').textContent = state.count;
     });
     $('#filterList').addEventListener('change', e => {
@@ -1098,12 +1308,12 @@
     // statystyki
     $('#rangeChips').addEventListener('click', e => {
       const c = e.target.closest('.chip'); if (!c) return;
-      if (c.hasAttribute('data-premium') && !requirePremium('Statystyki z dłuższego okresu')) return;
+      if (c.hasAttribute('data-premium') && !requireFeature('longStats', 'Statystyki z dłuższego okresu')) return;
       state.range = +c.dataset.range; renderStats();
     });
     $('#heatMode').addEventListener('click', e => {
       const c = e.target.closest('.seg-btn'); if (!c) return;
-      if (c.hasAttribute('data-premium') && !requirePremium('Mapa modelu')) return;
+      if (c.hasAttribute('data-premium') && !requireFeature('heatModel', 'Mapa modelu')) return;
       state.heatMode = c.dataset.mode; renderStats();
     });
     $('#heat').addEventListener('click', e => { const c = e.target.closest('.cell'); if (c) heatDetail(+c.dataset.n); });
@@ -1175,6 +1385,7 @@
   decoratePremium();
   const startView = location.hash.slice(1);
   if (VIEWS.includes(startView)) setView(startView);
+  if (BENCH) runSystemsBenchmark();
   window.addEventListener('hashchange', () => {
     if (checkJoinLink()) return;
     const v = location.hash.slice(1);

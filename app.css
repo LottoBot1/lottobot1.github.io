@@ -332,3 +332,31 @@ a { color: var(--accent2); }
 
 .check-block { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--card-b); font-size: .9rem; }
 .check-block .bars { margin-top: 8px; }
+
+/* podgląd właściciela „jako użytkownik darmowy” (?jako=darmowy) */
+.preview-bar { margin: 0 0 12px; padding: 10px 14px; border-radius: 14px; font-size: .88rem; background: rgba(34,211,238,.12); border: 1px solid rgba(34,211,238,.35); }
+.preview-bar a { color: inherit; font-weight: 700; }
+
+/* systemy skrócone */
+.sys-h { margin: 14px 0 6px; }
+.sys-guar { display: flex; flex-wrap: wrap; max-width: 100%; }
+.sys-cost { display: flex; flex-direction: column; gap: 2px; margin: 6px 0 10px; padding: 14px; border-radius: 14px; background: var(--chip); border: 1px solid var(--card-b); }
+.sys-cost b { font-size: 2.1rem; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.sys-cost.high { border-color: var(--warn); }
+.sys-cost.high b { color: var(--warn); }
+.sys-list summary { cursor: pointer; font-weight: 600; margin: 10px 0 4px; }
+.sys-list .gen-item { justify-content: flex-start; padding: 8px 0; }
+.sys-no { min-width: 2.2em; text-align: right; font-variant-numeric: tabular-nums; }
+.sys-res .hint.resp { font-size: .82rem; }
+
+/* okno potwierdzenia */
+.modal { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(5,8,20,.62); }
+.modal-box { width: 100%; max-width: 420px; max-height: calc(100vh - 32px); overflow: auto; border-radius: var(--r); padding: 18px; background: var(--bg2); border: 1px solid var(--card-b); box-shadow: var(--shadow); }
+.modal-box h2 { margin-top: 0; }
+.modal-amount { font-size: 2.2rem; font-weight: 800; margin: 4px 0 8px; color: var(--warn); font-variant-numeric: tabular-nums; }
+.modal-actions { justify-content: flex-end; margin-top: 14px; }
+
+/* pomiar szybkości (?pomiar=systemy) */
+.bench-table { overflow-x: auto; }
+.bench-table table { border-collapse: collapse; font-size: .8rem; font-variant-numeric: tabular-nums; }
+.bench-table th, .bench-table td { padding: 4px 6px; border-bottom: 1px solid var(--card-b); text-align: right; white-space: nowrap; }

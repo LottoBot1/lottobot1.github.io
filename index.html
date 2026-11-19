@@ -50,6 +50,7 @@
 
   <main id="app">
     <div class="clock-warn" id="clockWarn" role="alert" hidden></div>
+    <div class="preview-bar" id="previewBar" hidden>👁 Podgląd jako użytkownik <b>darmowy</b> (tylko na tym urządzeniu). <a href="?jako=normalnie">Wyłącz podgląd</a></div>
     <!-- START -->
     <section class="view active" id="view-home">
       <div class="card hero">
@@ -78,6 +79,7 @@
           <button class="chip" data-method="trend" data-premium>📈 Model trendu</button>
           <button class="chip" data-method="random">🎲 Losowo</button>
           <button class="chip" data-method="manual">✋ Własne</button>
+          <button class="chip" data-method="system" data-premium>🧩 System</button>
         </div>
         <p class="hint" id="methodHint"></p>
 
@@ -107,6 +109,18 @@
           </div>
         </div>
 
+        <div id="systemGen" hidden>
+          <p class="hint">Wybierz od 7 do 15 liczb: <b id="sysCount">0</b></p>
+          <div class="picker" id="sysPicker"></div>
+          <h3 class="sys-h">Gwarancja</h3>
+          <div class="seg small sys-guar" id="sysGuar"></div>
+          <p class="hint" id="sysGuarText"></p>
+          <div class="row-gap">
+            <button class="btn" id="sysClear">Wyczyść</button>
+            <button class="btn primary" id="sysBuild" disabled>Ułóż system</button>
+          </div>
+        </div>
+
         <label class="switch-row">
           <input type="checkbox" id="withPlus" checked>
           <span class="switch"></span>
@@ -115,6 +129,7 @@
       </div>
 
       <div id="genResults"></div>
+      <div id="sysResults" hidden></div>
     </section>
 
     <!-- STATYSTYKI -->
@@ -275,11 +290,22 @@
   </main>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <div class="modal" id="confirmModal" hidden>
+    <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="cmTitle">
+      <h2 id="cmTitle"></h2>
+      <div id="cmBody"></div>
+      <div class="row-gap modal-actions">
+        <button class="btn" id="cmCancel">Anuluj</button>
+        <button class="btn primary" id="cmOk">Potwierdzam</button>
+      </div>
+    </div>
+  </div>
   <script src="config.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
   <script src="cloud.js"></script>
   <script src="time.js"></script>
   <script src="bilans.js"></script>
+  <script src="systemy.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
