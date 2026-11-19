@@ -51,6 +51,7 @@ There is no build step, bundler or linter – plain HTML/CSS/vanilla JS served a
 - `app.js` is one IIFE with a single `state` object. Each screen is `<section id="view-<name>">`; `setView()`/`renderView()` dispatch by name, routing is the URL hash (`VIEWS` list), and `#join=CODE` is a group-invite link handled by `checkJoinLink()`. Views `account`, `rank`, `premium` have no draw-data dependency; others return early until data is loaded.
 - Draws come from `data/lotto.json` / `data/lottoplus.json` (`draws: [[no, "YYYY-MM-DD", [6 nums]], …]`), merged with user-entered manual results from localStorage (`withManual`).
 - All time logic is in `time.js` and always uses Polish time (Europe/Warsaw via `Intl`, with an EU DST fallback), never the device time zone. Bet settlement (`evalBet` → `TyperTime.targetDraw`): a bet belongs to the **first draw actually present in the data whose 22:00 Warsaw time is strictly after the bet's creation**; only while that draw is not in the data does the Tue/Thu/Sat schedule decide (`pending` / `waiting`). This mirrors `bet_results()` in the database – change both together, and keep `tests/time.test.js` in sync. Every displayed clock time carries the suffix `(czas polski)` (`PL` constant).
+- Device clock: app.js never reads `new Date()` for "now"; it uses `now()` = device clock + offset. `syncClock()` measures the offset with a `HEAD manifest.webmanifest?clock=…` request (`cache: 'no-store'`; the service worker ignores HEAD and `?clock`) from the `Date` + `Age` headers and the request duration (`TyperTime.measureOffset`). The offset is saved in `typer.clock` and used offline for at most 24 h (`activeOffset`), then the device clock. Bet time `t` is stored already corrected, so the `bets_ranked` ±15 min check passes even on a wrong device clock. Yellow banner `#clockWarn` above 15 min, with OS-specific instructions (`devicePlatform`). Tests: `tests/clock.test.js`.
 - localStorage keys: `lotto2.*` (bets, filters, manual draws, game – legacy prefix kept on purpose so existing users keep data) and `typer.*` (auth session, sync queue, owner id).
 - `sw.js`: shell is network-first with cache fallback, `data/` network-first, the pinned Supabase CDN file cache-first. **Bump `VERSION` whenever shell files change.**
 
@@ -76,7 +77,8 @@ GitHub Action cron (after Tue/Thu/Sat draws + daily) → `scripts/update_data.py
 - Wyniki pobierane automatycznie: pełna historia Lotto i Lotto Plus.
 - Statystyki, generator z filtrami, ręczny wybór liczb, sprawdzanie kuponu na całej historii.
 - Zapisywanie zakładów i rozliczanie ich z właściwym losowaniem, zawsze według czasu polskiego, niezależnie od strefy urządzenia. Zasada jest taka sama w aplikacji i w bazie. Przy wdrożeniu (18.11.2026) żaden z 10 zapisanych zakładów nie zmienił losowania. Godziny w aplikacji mają dopisek „(czas polski)”.
-- Automatyczne testy logiki czasu (14 testów × 6 stref czasowych) na GitHubie przy każdej zmianie. Nieudane testy blokują publikację kodu, ale nie aktualizację wyników.
+- Zegar urządzenia (19.11.2026): aplikacja sprawdza prawdziwy czas na serwerze i zapisuje zakłady z prawdziwą godziną, nawet gdy zegar telefonu jest przestawiony. Gdy różnica przekracza 15 min, pokazuje żółty pasek ze wskazówką, jak włączyć automatyczny czas (osobno dla Androida, iPhone'a i innych systemów). Bez internetu używa ostatniego pomiaru najwyżej przez 24 h, potem zegara telefonu.
+- Automatyczne testy logiki czasu i zegara urządzenia (14 + 12 testów × 6 stref czasowych) na GitHubie przy każdej zmianie. Nieudane testy blokują publikację kodu, ale nie aktualizację wyników.
 - Import starego pliku `user_bets.csv` z poprzedniej wersji programu, eksport i import kopii.
 - Instalacja na telefonie i działanie bez internetu.
 - Konta: rejestracja z potwierdzeniem e-mailem, logowanie, reset hasła, wylogowanie (także na telefonie), usuwanie konta.
@@ -96,11 +98,11 @@ GitHub Action cron (after Tue/Thu/Sat draws + daily) → `scripts/update_data.py
   - e-maile z Gmaila (limit ok. 500 dziennie);
   - dane z mbnet.com.pl bez oficjalnej zgody i licencji.
 - **Automatyczne testy obejmują tylko logikę czasu.** Reszta (synchronizacja, ranking w aplikacji, generator) jest sprawdzana ręcznie.
-- **Etap 1, krok 2 jeszcze nie zrobiony:** ostrzeżenie o przestawionym zegarze urządzenia i korekta czasu zakładu według czasu serwera.
+- **Korekta zegara bez internetu jest przybliżona.** Gdy ktoś przestawi zegar bez internetu, aplikacja do 24 h liczy według starego pomiaru. Po połączeniu z internetem od razu mierzy na nowo.
 
 ## Problemy i ryzyka w kodzie
 
-- **Przestawiony zegar urządzenia.** Strefa czasowa jest już obsłużona (czas polski), ale godzinę zapisania zakładu nadal podaje zegar urządzenia. Zegar przestawiony o ponad 15 min sprawia, że zakład po cichu nie liczy się do rankingu i może trafić do złego losowania. Rozwiąże to krok 2 Etapu 1.
+- **Przestawiony zegar urządzenia** – obsłużony (krok 2 Etapu 1). Zostaje jedno ryzyko: zakład zapisany bez internetu przez kogoś, kto nigdy nie był online albo jest offline od ponad 24 h, ma godzinę z zegara telefonu. Taki zakład i tak nie liczy się do rankingu, ale może trafić do złego losowania.
 - **Terminarz losowań (wt/czw/sob 22:00) jest wpisany na stałe.** Rozliczanie opiera się na losowaniach, które faktycznie są w danych, więc odwołane lub przesunięte losowanie nie psuje przypisania. Terminarz decyduje tylko o odliczaniu i o statusie „oczekuje”, a przy przesuniętym losowaniu przez chwilę może pokazać zły termin. Gdyby losowanie odbyło się o innej godzinie niż 22:00, przypisanie zakładów zapisanych w tym czasie mogłoby się różnić od rzeczywistego.
 - **Jedno źródło wyników.** Jeśli mbnet.com.pl zmieni format, adres albo zablokuje automat, wyniki przestaną się aktualizować. Skrypt nie usunie danych, ale nowych nie będzie. Źródło działa też tylko przez nieszyfrowane `http`.
 - **Wpisane na stałe adresy.**
@@ -126,6 +128,7 @@ GitHub Action cron (after Tue/Thu/Sat draws + daily) → `scripts/update_data.py
 
 - Keep the public project anonymous: commit as `lotto-bot <lotto-bot@users.noreply.github.com>` (set in the repo's git config) and never put the owner's real name or personal GitHub username into code, commits or docs.
 - Don't use "Lotto" as the product name or imitate Totalizator Sportowy branding (trademark); game names are used only descriptively.
+- Aplikacja musi działać na Androidzie (Chrome) i iPhonie (Safari, także zainstalowana na ekranie początkowym). Każdą zmianę sprawdzaj pod kątem obu systemów, a różnice opisuj właścicielowi.
 - Never claim the app improves the chance of winning (store policy and consumer law); keep the 18+/responsible-gaming notes.
 - E-mails go through custom SMTP (Gmail app password, entered by the owner). Security-related Supabase settings (e.g. "Confirm email") are the owner's decision – don't change them.
 - Planned next: Stage 3 – Android app via TWA in Google Play, Play Billing for Premium, push notifications after draws.

@@ -132,10 +132,63 @@
   /** „12:40” w czasie polskim. */
   function formatTime(date) { const p = parts(date); return `${pad(p.h)}:${pad(p.mi)}`; }
 
+  // ---------------------------------------------------------------- zegar urządzenia
+  // Zegar telefonu bywa przestawiony. Prawdziwą godzinę bierzemy z nagłówka „Date” odpowiedzi
+  // serwera (zapytanie zawsze do sieci, z pominięciem cache i service workera – app.js syncClock).
+  // offset = czas serwera − zegar urządzenia (ms); dodatni = zegar urządzenia się spóźnia.
+  const CLOCK_MAX_AGE = DAY;            // zapamiętanej różnicy używamy najwyżej 24 h
+  const CLOCK_MAX_RTT = 30000;          // zapytanie dłuższe niż 30 s – pomiar niewiarygodny
+  const CLOCK_WARN = 15 * 60000;        // ostrzeżenie (i ryzyko utraty rankingu) od 15 min
+
+  /**
+   * Różnica zegara z jednej odpowiedzi serwera albo null, gdy pomiar jest niewiarygodny.
+   * @param date      nagłówek Date (sekundy, zaokrąglone w dół)
+   * @param age       nagłówek Age (ile sekund odpowiedź leżała w pamięci CDN), może brakować
+   * @param sent      zegar urządzenia (ms) przed wysłaniem zapytania
+   * @param received  zegar urządzenia (ms) po otrzymaniu odpowiedzi
+   */
+  function measureOffset({ date, age, sent, received } = {}) {
+    const d = Date.parse(date || '');
+    if (!Number.isFinite(d) || !Number.isFinite(sent) || !Number.isFinite(received)) return null;
+    const rtt = received - sent;
+    if (rtt < 0 || rtt > CLOCK_MAX_RTT) return null;
+    const a = age == null || String(age).trim() === '' ? 0 : Number(age);
+    if (!Number.isFinite(a) || a < 0) return null;
+    // serwer wygenerował odpowiedź (Date + pół sekundy zaokrąglenia), CDN trzymał ją Age sekund,
+    // potem leciała do nas mniej więcej połowę czasu zapytania
+    const serverAtReceive = d + 500 + a * 1000 + rtt / 2;
+    return Math.round(serverAtReceive - received);
+  }
+
+  /**
+   * Różnica, którą stosujemy teraz. saved = {offset, at} (at = zegar urządzenia w chwili pomiaru).
+   * Brak/uszkodzone dane, pomiar starszy niż 24 h albo „z przyszłości” → 0 (zegar urządzenia).
+   */
+  function activeOffset(saved, nowDevice) {
+    if (!saved || typeof saved !== 'object') return 0;
+    const { offset, at } = saved;
+    if (!Number.isFinite(offset) || !Number.isFinite(at) || !Number.isFinite(nowDevice)) return 0;
+    const age = nowDevice - at;
+    if (age < -60000 || age > CLOCK_MAX_AGE) return 0;
+    return offset;
+  }
+
+  /** Czy ostrzec użytkownika, że zegar urządzenia jest przestawiony. */
+  function clockIsWrong(offset) { return Math.abs(offset || 0) > CLOCK_WARN; }
+
+  /** System urządzenia do wskazówki, gdzie ustawić czas: 'android' | 'ios' | 'other'. */
+  function devicePlatform(ua = '', platform = '', touchPoints = 0) {
+    if (/android/i.test(ua)) return 'android';
+    if (/iphone|ipad|ipod/i.test(ua)) return 'ios';
+    if (platform === 'MacIntel' && touchPoints > 1) return 'ios';   // iPad udaje komputer Mac
+    return 'other';
+  }
+
   const api = {
     TZ, DRAW_DAYS, DRAW_HOUR, offsetMin, fallbackOffsetMin, parts, dateISO, addDays, weekday,
     wallToInstant, drawInstant, nextScheduledDraw, lastScheduledDraw, targetDraw,
     formatDateTime, formatTime, hasIntlTimeZone: !!fmt,
+    CLOCK_MAX_AGE, CLOCK_WARN, measureOffset, activeOffset, clockIsWrong, devicePlatform,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   root.TyperTime = api;

@@ -52,6 +52,48 @@
     clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2600);
   }
 
+  // ------------------------------------------------------------------ zegar urządzenia
+  // Godzina zakładu, odliczanie i rozliczanie liczą się od prawdziwego czasu (serwera), nie od zegara telefonu.
+  // Pomiar: HEAD do własnej strony – zawsze sieć (cache: 'no-store', a service worker nie obsługuje HEAD).
+  // Bez internetu używamy zapamiętanej różnicy najwyżej 24 h (time.js activeOffset), potem zegara telefonu.
+  const clock = { saved: store.get('typer.clock', null), busy: false, last: 0 };
+  const clockOffset = () => TT.activeOffset(clock.saved, Date.now());
+  const now = () => new Date(Date.now() + clockOffset());
+
+  async function syncClock(force = false) {
+    const t0 = Date.now();
+    if (clock.busy || (!force && clock.last && t0 - clock.last >= 0 && t0 - clock.last < 60000)) return;
+    clock.busy = true;
+    try {
+      const sent = Date.now();
+      const res = await fetch(`manifest.webmanifest?clock=${sent}`, { method: 'HEAD', cache: 'no-store' });
+      const received = Date.now();
+      const offset = TT.measureOffset({ date: res.headers.get('Date'), age: res.headers.get('Age'), sent, received });
+      if (offset !== null) {
+        clock.saved = { offset, at: received }; clock.last = received;
+        store.set('typer.clock', clock.saved);   // może się nie udać (np. tryb prywatny) – w pamięci i tak jest
+      }
+    } catch { /* brak internetu – zostaje zapamiętana różnica (max 24 h) albo zegar telefonu */ }
+    finally { clock.busy = false; renderClockWarn(); }
+  }
+
+  const CLOCK_HELP = {
+    android: 'Ustaw czas automatyczny: Ustawienia → System → Data i godzina → Automatycznie.',
+    ios: 'Ustaw czas automatyczny: Ustawienia → Ogólne → Data i czas → Ustaw automatycznie.',
+    other: 'Włącz automatyczny czas w ustawieniach urządzenia.',
+  };
+  function renderClockWarn() {
+    const el = $('#clockWarn'); if (!el) return;
+    const off = clockOffset();
+    if (!TT.clockIsWrong(off)) { el.hidden = true; return; }
+    const min = Math.round(Math.abs(off) / 60000);
+    const amount = min >= 120 ? `${Math.round(min / 60)} godz.` : `${min} min`;
+    const dir = off > 0 ? 'spóźnia się' : 'śpieszy się';
+    const os = TT.devicePlatform(navigator.userAgent, navigator.platform, navigator.maxTouchPoints || 0);
+    el.textContent = `⏰ Zegar w Twoim urządzeniu ${dir} o ok. ${amount}. Godziny zakładów poprawiamy automatycznie, ale ustaw zegar, żeby wszystko działało dobrze. ${CLOCK_HELP[os]}`;
+    el.hidden = false;
+  }
+
   // ------------------------------------------------------------------ state
   const state = {
     game: store.get('lotto2.game', 'lotto'),
@@ -114,8 +156,8 @@
 
   // ------------------------------------------------------------------ terminarz losowań
   // Zawsze według czasu polskiego (time.js) – niezależnie od strefy urządzenia. Zwracają {date: 'RRRR-MM-DD', time: Date}.
-  const nextDrawTime = (from = new Date()) => TT.nextScheduledDraw(from);
-  const lastDrawTime = (from = new Date()) => TT.lastScheduledDraw(from);
+  const nextDrawTime = (from = now()) => TT.nextScheduledDraw(from);
+  const lastDrawTime = (from = now()) => TT.lastScheduledDraw(from);
 
   // ------------------------------------------------------------------ statystyki
   function stats(key, range) {
@@ -215,14 +257,14 @@
   }
 
   function addBet(nums, method) {
-    const bet = { id: uid(), t: new Date().toISOString(), nums, method, base: state.game, plus: $('#withPlus').checked, played: false };
+    const bet = { id: uid(), t: now().toISOString(), nums, method, base: state.game, plus: $('#withPlus').checked, played: false };
     state.bets.unshift(bet); saveBets(); Cloud.push(bet); return bet;
   }
 
   // ------------------------------------------------------------------ weryfikacja zakładów
   // Ta sama zasada co bet_results w bazie: pierwsze losowanie, które faktycznie się odbyło po zapisaniu zakładu.
   function evalBet(b) {
-    const t = TT.targetDraw(new Date(b.t), draws('lotto'), new Date());
+    const t = TT.targetDraw(new Date(b.t), draws('lotto'), now());
     const date = t.date, target = t.time;
     if (t.status !== 'done') return { status: t.status, date, target };
     const L = t.draw, P = b.plus ? drawByDate('lottoplus', date) : null;
@@ -236,7 +278,7 @@
 
   // ------------------------------------------------------------------ render: START
   function renderHome() {
-    const now = new Date(), next = nextDrawTime(now);
+    const at = now(), next = nextDrawTime(at);
     $('#nextDrawDate').textContent = `${dayName(next.date)}, ${fmtDate(next.date)} o ${DRAW_HOUR}:00 ${PL}`;
 
     const resultCard = (key, el) => {
@@ -249,10 +291,10 @@
     resultCard('lottoplus', $('#lastPlus'));
 
     // czy wynik ostatniego losowania już jest?
-    const lastS = lastDrawTime(now), last = lastS.time, lastIso = lastS.date, latest = draws('lotto').at(-1);
+    const lastS = lastDrawTime(at), last = lastS.time, lastIso = lastS.date, latest = draws('lotto').at(-1);
     const alert = $('#missingAlert');
     if (latest && latest.date < lastIso) {
-      const mins = Math.round((now - last) / 60000);
+      const mins = Math.round((at - last) / 60000);
       alert.hidden = false; alert.className = 'alert';
       alert.innerHTML = mins < 180
         ? `⏳ Losowanie z ${fmtDate(lastIso)} odbyło się ${mins} min temu – wyniki pojawią się automatycznie wkrótce (zwykle do godziny). Możesz odświeżyć przyciskiem ↻.`
@@ -280,8 +322,8 @@
   }
 
   function tickCountdown() {
-    const now = new Date(), next = nextDrawTime(now).time;
-    let s = Math.max(0, Math.floor((next - now) / 1000));
+    const at = now(), next = nextDrawTime(at).time;
+    let s = Math.max(0, Math.floor((next - at) / 1000));
     const d = Math.floor(s / 86400); s %= 86400;
     const h = Math.floor(s / 3600); s %= 3600;
     const m = Math.floor(s / 60); s %= 60;
@@ -482,7 +524,7 @@
       if (p.err) return;
       const ds = (r[ix('Data')] || '').trim();
       const m = ds.match(/(\d{4})-(\d{2})-(\d{2})(?:\s+(\d{2}):(\d{2}))?/);
-      const t = m ? new Date(+m[1], +m[2] - 1, +m[3], +(m[4] || 12), +(m[5] || 0)).toISOString() : new Date().toISOString();
+      const t = m ? new Date(+m[1], +m[2] - 1, +m[3], +(m[4] || 12), +(m[5] || 0)).toISOString() : now().toISOString();
       const typ = (r[ix('Typ Gry')] || '').trim();
       const met = (r[ix('Metoda')] || '').toLowerCase().includes('ai') ? 'ai' : 'stat';
       const played = ['tak', 'true'].includes((r[ix('Zagrany')] || '').trim().toLowerCase());
@@ -1021,7 +1063,7 @@
       if (a) {
         const b = state.bets.find(x => x.id === a.dataset.again);
         if (b && canAddBets(1)) {
-          const nb = { ...b, id: uid(), t: new Date().toISOString(), played: false, synced: false };
+          const nb = { ...b, id: uid(), t: now().toISOString(), played: false, synced: false };
           state.bets.unshift(nb); saveBets(); Cloud.push(nb); renderBets(); toast('Dodano na najbliższe losowanie ✓');
         }
       }
@@ -1049,7 +1091,8 @@
     $('#installBtn').addEventListener('click', async () => { if (!deferred) return; deferred.prompt(); await deferred.userChoice; deferred = null; $('#installBtn').hidden = true; });
 
     // odśwież po powrocie do aplikacji (np. telefon wybudzony po losowaniu)
-    document.addEventListener('visibilitychange', () => { if (!document.hidden) { refresh(false); syncNow(true); } });
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) { syncClock(); refresh(false); syncNow(true); } });
+    window.addEventListener('online', () => syncClock(true));
   }
 
   // ------------------------------------------------------------------ start
@@ -1080,9 +1123,11 @@
   tickCountdown(); setInterval(() => {
     tickCountdown();
     // tuż po 22:00 w dniu losowania odświeżaj dane co 5 minut
-    const p = TT.parts(new Date());   // czas polski
+    const p = TT.parts(now());   // czas polski
     if (DRAW_DAYS.includes(p.wd) && p.h >= DRAW_HOUR && p.s === 0 && p.mi % 5 === 0) refresh(false);
   }, 1000);
+  renderClockWarn();     // ostrzeżenie od razu z zapamiętanej różnicy (także bez internetu)
+  syncClock(true);
   refresh(false);
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
