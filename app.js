@@ -986,6 +986,7 @@
   function syncLabel() {
     const s = acct.syncInfo;
     if (!s) return '';
+    if (!s.user) return s.pending ? `📴 ${s.pending} zmian czeka na wysłanie` : '';
     if (s.online === false) return `📴 Offline – ${s.pending} zmian czeka na wysłanie`;
     if (s.pending) return `⏳ Wysyłanie zmian (${s.pending})…`;
     return s.lastSync ? `✓ Zsynchronizowano ${TT.formatTime(s.lastSync)} ${PL}` : '✓ Połączono';
