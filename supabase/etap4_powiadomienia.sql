@@ -127,7 +127,9 @@ revoke all on function public.delete_my_account() from public, anon;
 grant execute on function public.delete_my_account() to authenticated;
 
 -- ================================================================ sprzątanie
--- Adres urządzenia, które nie otworzyło aplikacji przez 180 dni, jest usuwany. Stare odpowiedzi pg_net Supabase czyści sam.
+-- Adres urządzenia, które nie otworzyło aplikacji przez 180 dni, jest usuwany (tak mówi privacy.html, pkt 5).
+-- Informacja o wysłanych powiadomieniach – najwyżej 90 dni. Stare odpowiedzi pg_net Supabase czyści sam.
 select cron.unschedule(jobid) from cron.job where jobname = 'typer-push-cleanup';
 select cron.schedule('typer-push-cleanup', '17 3 * * *',
-  $$delete from public.push_subscriptions where updated_at < now() - interval '180 days'$$);
+  $$delete from public.push_subscriptions where updated_at < now() - interval '180 days';
+    delete from public.push_sent where sent_at < now() - interval '90 days'$$);
