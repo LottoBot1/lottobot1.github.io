@@ -22,4 +22,7 @@ window.APP_CONFIG = {
   },
   supabaseUrl: 'https://ydntwczvpzydwqqwhmof.supabase.co',
   supabaseKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlkbnR3Y3p2cHp5ZHdxcXdobW9mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ5MjExNTQsImV4cCI6MjExMDQ5NzE1NH0.0IPGVzUu6XZUsUKc3ZKDoRcQBTfZRO2o7MQ5gHw9pSc',
+  // Klucz PUBLICZNY VAPID do powiadomień (para do sekretu VAPID_PRIVATE_JWK w funkcji Supabase „powiadomienia”).
+  // Klucz prywatny NIGDY nie trafia do repozytorium. Zmiana pary = wszyscy muszą ponownie włączyć powiadomienia.
+  vapidPublicKey: 'BHoCT0vBv5jdOp15Dn-cQYlg9A-lFR3dDzoOV1ThQ_8gA4OvFYbi7WBxnsNz1X9Q0E5cQDkA5pQKgVmUaG4oPlE',
 };

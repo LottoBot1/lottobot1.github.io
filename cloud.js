@@ -92,6 +92,8 @@ window.Cloud = (() => {
   async function signOut() {
     // daj maks. 3 s na wysłanie zaległych zmian, potem wyloguj niezależnie od wyniku
     await Promise.race([flush().catch(() => {}), new Promise(r => setTimeout(r, 3000))]);
+    // powiadomienia: usuń adres tego urządzenia (maks. 3 s) – bez internetu wystarczy wypisanie u dostawcy
+    await Promise.race([pushOffDevice().catch(() => {}), new Promise(r => setTimeout(r, 3000))]);
     try {
       // scope 'local' usuwa sesję z tego urządzenia bez czekania na serwer
       await Promise.race([sb.auth.signOut({ scope: 'local' }), new Promise(r => setTimeout(r, 2000))]);
@@ -103,9 +105,10 @@ window.Cloud = (() => {
     status();
   }
   async function deleteAccount() {
-    const { error } = await sb.rpc('delete_my_account');
+    const { error } = await sb.rpc('delete_my_account');   // usuwa też wszystkie adresy powiadomień konta
     if (error) throw new Error(plError(error));
     saveQ([]);
+    if (window.TyperPush) await window.TyperPush.unsubscribeLocal().catch(() => {});
     await sb.auth.signOut({ scope: 'local' }).catch(() => {});
     status();
   }
@@ -142,6 +145,27 @@ window.Cloud = (() => {
   async function deleteGroup(groupId) {
     const { error } = await sb.from('groups').delete().eq('id', groupId);
     if (error) throw new Error(plError(error));
+  }
+
+  // ---------------------------------------------------------- powiadomienia (Etap 4, krok 3)
+  async function pushSave(sub, hide) {
+    if (!user) throw new Error('Zaloguj się.');
+    const j = sub.toJSON ? sub.toJSON() : sub;
+    const { error } = await sb.rpc('push_subscribe', { p_endpoint: j.endpoint, p_p256dh: j.keys.p256dh, p_auth: j.keys.auth, p_hide: !!hide });
+    if (error) throw new Error(plError(error));
+  }
+  async function pushDelete(endpoint) {
+    if (!user || !endpoint) return;
+    const { error } = await sb.from('push_subscriptions').delete().eq('endpoint', endpoint);
+    if (error) throw new Error(plError(error));
+  }
+  const pushTest = () => rpc('push_test', {});
+  // Wyłącza powiadomienia na tym urządzeniu: usuwa adres z bazy (gdy się da) i wypisuje u dostawcy.
+  async function pushOffDevice() {
+    const TP = window.TyperPush; if (!TP) return;
+    const sub = await TP.current(); if (!sub) return;
+    try { await pushDelete(sub.endpoint); } catch (e) { console.warn('push delete:', e); }
+    await TP.unsubscribeLocal();
   }
 
   // ---------------------------------------------------------- zakłady
@@ -211,6 +235,7 @@ window.Cloud = (() => {
     get user() { return user; },
     init, signUp, signIn, signOut, resetPassword, updatePassword, deleteAccount, getProfile, setNick, setPublicRanking,
     ranking, myStats, myGroups, createGroup, joinGroup, leaveGroup, deleteGroup,
+    pushSave, pushDelete, pushTest, pushOffDevice,
     push, remove, flush, fullSync, pending: () => loadQ().length,
   };
 })();
