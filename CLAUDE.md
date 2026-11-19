@@ -160,7 +160,7 @@ Punkty poniżej to **Etap 1–6**. Tylko tak nazywamy etapy w rozmowach, commita
 - **Etap 1** ✅ (zrobione 18–19.11.2026) Poprawka czasu: rozliczanie zakładów zawsze według czasu polskiego (Europe/Warsaw), niezależnie od strefy i zegara urządzenia, zgodnie z logiką bazy (`bet_results`). Ostrzeżenie dla użytkownika, gdy zegar urządzenia jest przestawiony o więcej niż 15 min. Do tej logiki powstaje automatyczny test.
 - **Etap 2** ✅ (zrobione 19.11.2026) Szybkie poprawki: napis „rankingi (wkrótce)”, przestarzały README.md, ekran Premium bez wzmianek o Google Play (aplikacja działa też na iPhonie).
 - **Etap 3** ✅ (19.11.2026 – skonfigurowany, próbny alarm dotarł e-mailem) Ostrzeżenia o awariach: właściciel dostaje e-mail, gdy przez ponad 3,5 dnia nie przyjdą nowe wyniki, gdy automat GitHuba się wysypie lub stanie, gdy baza przestanie pobierać wyniki lub gdy przestanie działać hasło do Gmaila. Rozwiązanie: Strażnik + healthchecks.io (szczegóły w „Monitoring”).
-- **Etap 4** Nowe funkcje, każda osobno: bilans wydatków (krok 1 ✅ 19.11.2026), systemy skrócone (krok 2 ✅ 19.11.2026; pomiar na iPhonie do zrobienia), powiadomienia po losowaniu (krok 3).
+- **Etap 4** Nowe funkcje, każda osobno: bilans wydatków (krok 1 ✅ 19.11.2026), systemy skrócone (krok 2 ✅ 19.11.2026; pomiar na iPhonie do zrobienia), powiadomienia po losowaniu (krok 3), logowanie wymagane do zapisywania (krok 4).
   - Ceny i wygrane zmieniają się rzadko: przy kolejnej zmianie dopisz linijkę w tabelach `CENY` / `TROJKA` w `bilans.js` (data = pierwsze losowanie po nowej cenie) i test w `tests/bilans.test.js`.
   - **Krok 3 – powiadomienia po losowaniu (plan zatwierdzony przez właściciela 19.11.2026; część A ✅ 19.11.2026, część B opublikowana 19.11.2026).**
     - Plan:
@@ -182,6 +182,18 @@ Punkty poniżej to **Etap 1–6**. Tylko tak nazywamy etapy w rozmowach, commita
       7. Próbne powiadomienie najwyżej raz na minutę na użytkownika.
       8. Klucz prywatny VAPID pokazać właścicielowi tylko raz, z instrukcją, gdzie go wkleić w Supabase. Nie zapisywać go w żadnym pliku w repozytorium.
       9. Część A sprawdzamy na Androidzie właściciela. **Otwarty punkt: test powiadomień na iPhonie** (właściciel nie ma teraz iPhone'a).
+  - **Krok 4 – logowanie wymagane do zapisywania (zlecony przez właściciela 19.11.2026; plan czeka na zgodę, publikacja dopiero po sprawdzeniu pierwszej nocnej wysyłki powiadomień).**
+    - Bez konta: Start, Statystyki, Generator (generowanie i podgląd zestawów), sprawdzanie kuponu na historii losowań.
+    - Z kontem: zapisywanie zakładów, zakładka Zakłady, Ranking, grupy, Bilans, powiadomienia, systemy skrócone, import i eksport zakładów.
+    - Warunki właściciela:
+      1. Zakładki wymagające konta są widoczne w menu; po wejściu przyjazny ekran (co daje darmowe konto: zakłady na wszystkich urządzeniach, automatyczne sprawdzanie, ranking, powiadomienia) z przyciskami „Załóż darmowe konto” i „Zaloguj się”. Bez nachalnych okienek.
+      2. „Zapisz” u gościa → rejestracja lub logowanie, a po zalogowaniu zestaw zapisuje się automatycznie (nie może zginąć).
+      3. Zakłady zapisane na urządzeniu bez konta nie mogą zginąć: informacja, a po założeniu konta lub zalogowaniu propozycja przeniesienia do chmury. Nigdy nie usuwać danych z urządzenia bez zgody użytkownika.
+      4. Link `#join=KOD` u gościa: najpierw logowanie lub rejestracja, potem automatyczne dołączenie do grupy.
+      5. Zalogowany użytkownik nadal korzysta z aplikacji bez internetu (sesja zapamiętana na urządzeniu).
+      6. Podgląd „jako gość” dla właściciela: `?jako=gosc`, tylko na tym urządzeniu (jak `?jako=darmowy`).
+      7. Teksty bez presji; wyraźnie, że konto jest darmowe i dlaczego jest potrzebne.
+      8. Sprawdzić na Androidzie i iPhonie, różnice opisać.
 - **Etap 5** Wydajność przed promocją: ranking, zapis zakładów i synchronizacja przy tysiącach użytkowników.
   - Remisy w rankingu rozstrzygać wskaźnikami na jeden zakład (np. % zakładów z trójką), żeby więcej zakładów nie dawało przewagi.
 - **Etap 6** Google Play (aplikacja na Androida przez TWA) i płatności Premium (Play Billing) – dopiero gdy właściciel potwierdzi, że kwestie prawne (znak „Lotto”, reklama gier, licencja na dane) są zamknięte w osobnym projekcie.
