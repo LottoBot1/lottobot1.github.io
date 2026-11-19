@@ -796,7 +796,7 @@
     $('#premiumBody').innerHTML = `
       <h2>👑 Typer49 Premium</h2>
       ${CFG.betaAllPremium
-        ? '<div class="alert ok">🎉 Trwają testy aplikacji – <b>wszystkie funkcje Premium są teraz darmowe</b> dla każdego. Płatna subskrypcja pojawi się razem z aplikacją w Google Play.</div>'
+        ? '<div class="alert ok">🎉 Trwają testy aplikacji – <b>wszystkie funkcje Premium są teraz darmowe</b> dla każdego. Płatna subskrypcja pojawi się po zakończeniu testów.</div>'
         : prem ? '<div class="alert ok">✓ Masz aktywne Premium. Dziękujemy!</div>' : ''}
       <table class="plan-table">
         <tr><th></th><th>Darmowy</th><th>Premium</th></tr>
