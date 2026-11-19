@@ -391,6 +391,7 @@
   const plural = (n, one, few, many) => n === 1 ? one : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14)) ? few : many;
   const HITS_WORD = { 3: '3 trafienia (trójkę)', 4: '4 trafienia (czwórkę)', 5: '5 trafień (piątkę)' };
   const guarText = (m, k) => `Gwarancja ${m} z ${k}: jeśli ${k} ${plural(k, 'wylosowana liczba', 'wylosowane liczby', 'wylosowanych liczb')} ${k >= 5 ? 'będzie' : 'będą'} wśród wybranych, co najmniej jeden zakład ma ${HITS_WORD[m]}. Gdy trafisz mniej z wybranych, gwarancji nie ma.`;
+  const fmtSecs = (ms, short = false) => ms < 100 ? (short ? '<0,1 s' : 'poniżej 0,1 s') : `${(ms / 1000).toFixed(1).replace('.', ',')} s`;
   const sysGuar = () => { const [m, k] = state.sysGuar.split('-').map(Number); return { m, k }; };
 
   let sysWorker = null, sysReq = 0;
@@ -449,7 +450,7 @@
         ? `<div class="alert">Ten system ma ${n} zakładów – więcej niż limit ${TS.MAX_BETS}. Wybierz mniej liczb albo słabszą gwarancję.</div>`
         : `<button class="btn primary big" id="sysSave" ${r.saved ? 'disabled' : ''}>${r.saved ? 'Zapisano ✓' : `Zapisz wszystkie zakłady (${n})`}</button>`}
       <p class="hint resp">⚠️ System skrócony nie zwiększa szansy na wygraną w przeliczeniu na wydaną złotówkę. Daje tylko pewność mniejszej wygranej, gdy wylosowane liczby znajdą się wśród Twoich. 🔞 Gra tylko dla osób pełnoletnich.</p>
-      <p class="hint">Policzono w ${(r.wall / 1000).toFixed(1).replace('.', ',')} s.</p>
+      <p class="hint">Policzono w ${fmtSecs(r.wall)}.</p>
       <details class="sys-list"${n <= 20 ? ' open' : ''}><summary>Zakłady do przepisania na kupony (${n})</summary>
         ${r.bets.map((b, i) => `<div class="gen-item"><span class="muted sys-no">${i + 1}.</span>${balls(b, 'sm')}</div>`).join('')}
       </details>
@@ -518,14 +519,14 @@
     const draw = () => {
       $('#benchTable').innerHTML = `<table><tr><th>liczb</th>${TS.GUARANTEES.map(([m, k]) => `<th>${m} z ${k}</th>`).join('')}</tr>
         ${vs.map(v => `<tr><td>${v}</td>${TS.GUARANTEES.map(([m, k]) => `<td>${cell[`${v}-${m}-${k}`] || '…'}</td>`).join('')}</tr>`).join('')}</table>
-        <p class="hint">W komórce: czas liczenia w sekundach / liczba zakładów.</p>`;
+        <p class="hint">W komórce: liczba zakładów, pod nią czas liczenia.</p>`;
     };
     draw();
     for (const [m, k] of TS.GUARANTEES) for (const v of vs) {
       const nums = Array.from({ length: v }, (_, i) => i * 3 + 1), t0 = performance.now();
       try {
         const r = await computeSystem(nums, m, k), s = (performance.now() - t0) / 1000;
-        cell[`${v}-${m}-${k}`] = `${s.toFixed(1).replace('.', ',')} s / ${r.bets.length}`;
+        cell[`${v}-${m}-${k}`] = `${r.bets.length}<small>${fmtSecs(s * 1000, true)}</small>`;
         rows.push(`${v};${m}z${k};${s.toFixed(2)};${r.bets.length}`);
       } catch (e) { cell[`${v}-${m}-${k}`] = 'błąd'; rows.push(`${v};${m}z${k};błąd;${e.message}`); }
       draw();

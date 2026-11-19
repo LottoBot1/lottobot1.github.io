@@ -358,5 +358,6 @@ a { color: var(--accent2); }
 
 /* pomiar szybkości (?pomiar=systemy) */
 .bench-table { overflow-x: auto; }
-.bench-table table { border-collapse: collapse; font-size: .8rem; font-variant-numeric: tabular-nums; }
-.bench-table th, .bench-table td { padding: 4px 6px; border-bottom: 1px solid var(--card-b); text-align: right; white-space: nowrap; }
+.bench-table table { width: 100%; border-collapse: collapse; font-size: .8rem; font-variant-numeric: tabular-nums; }
+.bench-table th, .bench-table td { padding: 4px 3px; border-bottom: 1px solid var(--card-b); text-align: right; white-space: nowrap; }
+.bench-table td small { display: block; font-size: .68rem; color: var(--muted); }
