@@ -13,9 +13,10 @@ name: Aktualizacja wyników i publikacja
 
 on:
   schedule:
-    - cron: "40 21 * * 2,4,6"   # wt/czw/sob 21:40 UTC
-    - cron: "30 22 * * 2,4,6"   # wt/czw/sob 22:30 UTC
-    - cron: "30 23 * * 2,4,6"   # wt/czw/sob 23:30 UTC
+    # wt/czw/sob co 15 min, 20:05–23:50 UTC (= od losowania do ok. 0:50 czasu polskiego zimą, 1:50 latem),
+    # żeby wyniki szybko trafiły na stronę, do bazy i w powiadomieniach (Etap 4, krok 3, część B).
+    # Przebieg bez nowych wyników niczego nie zapisuje.
+    - cron: "5,20,35,50 20-23 * * 2,4,6"
     - cron: "15 5 * * 3,5,0"    # śr/pt/nd 05:15 UTC
     - cron: "0 12 * * *"        # codziennie 12:00 UTC (zapas)
   push:
@@ -71,6 +72,8 @@ jobs:
   update-data:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.save.outputs.changed }}
     steps:
       - uses: actions/checkout@v4
 
@@ -82,8 +85,10 @@ jobs:
         run: python scripts/update_data.py
 
       - name: Zapisz zmiany w repozytorium
+        id: save
         run: |
           if [ -n "$(git status --porcelain data)" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
             git config user.name  "lotto-bot"
             git config user.email "lotto-bot@users.noreply.github.com"
             git add data
@@ -92,6 +97,7 @@ jobs:
             git push
           else
             echo "Brak nowych wyników."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
           fi
 
       # Darmowy plan Supabase usypia bazę po 7 dniach bez ruchu – automat ją "budzi" przy każdym uruchomieniu.
@@ -109,7 +115,10 @@ jobs:
   # ------------------------------------------------------------------ publikacja
   deploy:
     needs: [test, update-data]
-    if: always() && github.ref == 'refs/heads/main' && needs.update-data.result == 'success'
+    # przebiegi z harmonogramu publikują stronę tylko wtedy, gdy przyszły nowe wyniki
+    if: >-
+      always() && github.ref == 'refs/heads/main' && needs.update-data.result == 'success'
+      && (github.event_name != 'schedule' || needs.update-data.outputs.changed == 'true')
     runs-on: ubuntu-latest
     environment:
       name: github-pages
