@@ -109,6 +109,41 @@ class PublicKeyOnly(unittest.TestCase):
         self.assertTrue(M.key_is_public(key))
 
 
+class Push(unittest.TestCase):
+    # losowanie czw 19.11.2026 22:00 czasu polskiego = 21:00 UTC
+    BASE = {"draw_no": 7300, "draw_date": "2026-11-19", "draw_time": "2026-11-19T21:00:00+00:00"}
+
+    def h(self, **kw):
+        return {**self.BASE, "started_at": None, "finished_at": None, "attempts": None, "has_error": None, **kw}
+
+    def test_przed_uplywem_3_h_bez_alarmu(self):
+        self.assertIsNone(M.push_problem(self.h(), at("2026-11-20T00:00:00Z")))
+
+    def test_nie_uruchomione(self):
+        p = M.push_problem(self.h(), at("2026-11-20T01:15:00Z"))
+        self.assertIn("nie zostały uruchomione", p)
+        self.assertIn("19.11.2026", p)
+
+    def test_udane(self):
+        ok = self.h(started_at="2026-11-19T22:10:00+00:00", finished_at="2026-11-19T22:10:20+00:00",
+                    attempts=1, has_error=False, users=5, sent=6, failed=0)
+        self.assertIsNone(M.push_problem(ok, at("2026-11-20T01:15:00Z")))
+
+    def test_blad(self):
+        bad = self.h(started_at="2026-11-19T22:10:00+00:00", finished_at="2026-11-19T22:10:20+00:00",
+                     attempts=3, has_error=True)
+        self.assertIn("błędem", M.push_problem(bad, at("2026-11-20T01:15:00Z")))
+
+    def test_niezakonczone(self):
+        hang = self.h(started_at="2026-11-19T23:00:00+00:00", attempts=1, has_error=False)
+        self.assertIsNone(M.push_problem(hang, at("2026-11-19T23:50:00Z")))     # przed 3 h
+        self.assertIn("nie zakończyła", M.push_problem(hang, at("2026-11-20T01:15:00Z")))
+
+    def test_stare_losowanie_i_brak_danych(self):
+        self.assertIsNone(M.push_problem(self.h(), at("2026-11-24T22:00:00Z")))
+        self.assertIsNone(M.push_problem(None, at("2026-11-20T01:15:00Z")))
+
+
 class Report(unittest.TestCase):
     def test_raport(self):
         self.assertIn("Wszystko działa", M.report([], []))

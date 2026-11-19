@@ -1037,7 +1037,7 @@
     ['Model trendu', '–', '✓'],
     ['Statystyki z 250 / 500 / wszystkich losowań', '–', '✓'],
     ['Mapa „Model”, najczęstsze pary', '–', '✓'],
-    ['Powiadomienia po losowaniu (wkrótce)', '✓', '✓'],
+    ['Powiadomienia po losowaniu', '✓', '✓'],
     ['Bilans wydatków (odpowiedzialna gra)', '✓', '✓'],
     ['Systemy skrócone (7–15 liczb, gwarancja 3–5 trafień)', '–', '✓'],
     ['Bez reklam (gdy pojawią się reklamy)', '–', '✓'],
@@ -1239,7 +1239,7 @@
     const el = $('#pushBody'); if (!el) return;
     const st = TP ? TP.state() : 'unsupported';
     const msg = pn.msg ? `<p class="acct-msg ${pn.ok ? 'ok' : 'err'}">${esc(pn.msg)}</p>` : '';
-    const intro = `<p class="hint">Po każdym losowaniu (wt, czw, sob ok. 22:00 ${PL}) dostaniesz powiadomienie, że są wyniki i Twoje zakłady są rozliczone. Stuknięcie otwiera Zakłady.</p>`;
+    const intro = `<p class="hint">Gdy masz zakład na losowanie (wt, czw, sob o 22:00 ${PL}), po pojawieniu się wyników – zwykle w ciągu godziny – dostaniesz powiadomienie, że Twoje zakłady są rozliczone. Przy 3 lub więcej trafieniach podamy ich liczbę. Stuknięcie otwiera Zakłady.</p>`;
     const foot = `<p class="hint">Powiadomienia włącza się osobno na każdym telefonie i komputerze. <a href="privacy.html">Zasady prywatności</a>.</p>`;
     if (st === 'ios-install') {
       el.innerHTML = intro + `<p class="hint">📱 Na iPhonie i iPadzie powiadomienia działają tylko w aplikacji dodanej do ekranu początkowego (iOS 16.4 lub nowszy):<br>
@@ -1262,7 +1262,7 @@
       <label class="switch-row"><input type="checkbox" id="pushHide" ${hide ? 'checked' : ''} ${dis}><span class="switch"></span><span>Ukryj szczegóły na zablokowanym ekranie</span></label>
       <p class="hint">Po włączeniu powiadomienie pokazuje tylko „Nowe wyniki w Typer49”.</p>
       <button class="btn" id="pushTestBtn" ${dis}>🔔 Wyślij próbne powiadomienie</button>
-      <p class="hint">Automatyczne powiadomienia po losowaniu uruchomimy wkrótce. Już teraz możesz sprawdzić, czy powiadomienia docierają na to urządzenie.</p>` : ''}
+      <p class="hint">Próbne powiadomienie sprawdza, czy powiadomienia docierają na to urządzenie.</p>` : ''}
       ${msg}${foot}`;
   }
 

@@ -4,7 +4,8 @@
 Uruchamiany przez GitHub Actions (.github/workflows/monitor.yml). Sprawdza:
   1. wyniki na stronie – najnowsze losowanie nie starsze niż 3,5 dnia,
   2. automat wyników na GitHubie – ostatni przebieg zakończony bez błędu,
-  3. bazę Supabase – ma te same wyniki co strona (najwyżej 8 h po losowaniu),
+  3. bazę Supabase – ma te same wyniki co strona (najwyżej 8 h po losowaniu)
+     i wysłała powiadomienia po losowaniu (najwyżej 3 h po losowaniu),
   4. skrzynkę Gmail – hasło aplikacji działa (tylko logowanie, bez wysyłania; najwyżej raz na dobę).
 
 Wynik trafia do healthchecks.io: „OK” albo „problem” z opisem po polsku – healthchecks.io
@@ -35,6 +36,7 @@ GAME_NAMES = {"lotto": "Lotto", "lottoplus": "Lotto Plus"}
 
 RESULTS_MAX_AGE = timedelta(days=3, hours=12)   # zwykła przerwa sob→wt to ok. 3 dni
 DB_MAX_LAG = timedelta(hours=8)                  # od godziny losowania do wyników w bazie
+PUSH_GRACE = timedelta(hours=3)                  # od godziny losowania do wysłanych powiadomień
 HOLIDAY_NOTE = "Jeśli dziś lub wczoraj było święto, losowanie mogło zostać przesunięte."
 
 
@@ -75,6 +77,34 @@ def db_problem(game: str, site_latest: str | None, db_latest: str | None, now: d
     return (f"Baza Supabase nie pobrała wyników {name} z {fmt_pl(site_latest)} (w bazie ostatnie: {have}). "
             f"Ranking się nie aktualizuje. Sprawdź w Supabase, czy projekt nie jest wstrzymany (Paused) "
             f"i czy działają zadania cron „typer-draws-…”.")
+
+
+def parse_ts(s: str | None) -> datetime | None:
+    return datetime.fromisoformat(s.replace("Z", "+00:00")) if s else None
+
+
+def push_problem(h: dict | None, now: datetime) -> str | None:
+    """Alarm, gdy po losowaniu powiadomienia się nie wysłały (dane z push_health(), bez danych osób).
+
+    Czekamy 3 h od losowania (wyniki zwykle są w bazie po ok. 1 h). Losowania starsze niż 4 dni
+    pomijamy – wtedy i tak alarmuje sprawdzenie wyników.
+    """
+    if not h or not h.get("draw_time"):
+        return None
+    drawn = parse_ts(h["draw_time"])
+    if now - drawn <= PUSH_GRACE or now - drawn > timedelta(days=4):
+        return None
+    when = fmt_pl(h["draw_date"])
+    where = ("Sprawdź w Supabase: Edge Functions → powiadomienia → Logs oraz zadania cron "
+             "„typer-draws-night-…” i „typer-push-check”.")
+    if not h.get("started_at"):
+        return f"Powiadomienia po losowaniu z {when} nie zostały uruchomione. {where}"
+    if h.get("has_error"):
+        return (f"Wysyłka powiadomień po losowaniu z {when} zakończyła się błędem "
+                f"(próby: {h.get('attempts')}). {where}")
+    if not h.get("finished_at") and now - parse_ts(h["started_at"]) > timedelta(minutes=30):
+        return f"Wysyłka powiadomień po losowaniu z {when} nie zakończyła się. {where}"
+    return None
 
 
 def workflow_problem(runs: list[dict]) -> str | None:
@@ -142,6 +172,15 @@ def db_latest(url: str, key: str, game: str) -> str | None:
     rows = get_json(f"{url}/rest/v1/draws?select=draw_date&game=eq.{game}&order=draw_date.desc&limit=1",
                     {"apikey": key, "Authorization": f"Bearer {key}"})
     return rows[0]["draw_date"] if rows else None
+
+
+def push_health(url: str, key: str) -> dict | None:
+    req = urllib.request.Request(f"{url}/rest/v1/rpc/push_health", data=b"{}", method="POST",
+                                 headers={"apikey": key, "Authorization": f"Bearer {key}",
+                                          "Content-Type": "application/json", "User-Agent": "typer49-monitor"})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        rows = json.loads(r.read().decode("utf-8"))
+    return rows[0] if rows else None
 
 
 def workflow_runs() -> list[dict]:
@@ -217,6 +256,17 @@ def main() -> int:
                 problems.append(f"Baza Supabase nie odpowiada ({e}). Sprawdź w Supabase, czy projekt "
                                 f"nie jest wstrzymany (Paused) – darmowy plan usypia bazę po 7 dniach bez ruchu.")
                 break
+        # 3a. powiadomienia po losowaniu (Etap 4, krok 3, część B)
+        try:
+            h = push_health(url, key)
+            p = push_problem(h, now)
+            if p:
+                problems.append(p)
+            elif h and h.get("finished_at"):
+                notes.append(f"Powiadomienia po losowaniu z {fmt_pl(h['draw_date'])}: "
+                             f"osoby {h.get('users')}, wysłane {h.get('sent')}, nieudane {h.get('failed')}.")
+        except Exception as e:                       # noqa: BLE001
+            notes.append(f"Nie udało się sprawdzić powiadomień po losowaniu ({e}).")
 
     # 4. Gmail – tylko logowanie, najwyżej raz na dobę (pilnuje tego monitor.yml)
     if os.environ.get("CHECK_GMAIL") == "true":
