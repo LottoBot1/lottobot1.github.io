@@ -120,6 +120,65 @@
   const saveBets = () => { store.set('lotto2.bets', state.bets); renderBadge(); };
   const Cloud = window.Cloud || { enabled: false, user: null, push() {}, remove() {} };
 
+  // ------------------------------------------------------------------ konto wymagane do zapisywania (Etap 4, krok 4)
+  // Zakłady zapisane na urządzeniu bez konta („zakłady gościa”) leżą osobno (lotto2.bets.guest) i nigdy nie są
+  // wysyłane ani usuwane bez decyzji użytkownika. Na liście zakładów są tylko zakłady konta.
+  // Zestaw kliknięty „Zapisz” przez gościa i kod zaproszenia czekają na zalogowanie najwyżej 7 dni (dostep.js).
+  const TD = window.TyperDostep;
+  const OWNER_KEY = 'typer.owner', GUEST_KEY = 'lotto2.bets.guest';
+  const PENDING_SAVE = 'typer.pendingSave', PENDING_JOIN = 'typer.pendingJoin';
+  let guestBets = store.get(GUEST_KEY, []);
+  const saveGuest = () => store.set(GUEST_KEY, guestBets);
+  (function separateGuestBets() {
+    const s = TD.splitLegacy(state.bets, store.get(OWNER_KEY, null));
+    if (!s.guest.length) return;
+    const merged = TD.mergeGuest(guestBets, s.guest);
+    // najpierw zapis w nowym miejscu i sprawdzenie – dopiero potem lista konta jest czyszczona
+    if (!store.set(GUEST_KEY, merged) || (store.get(GUEST_KEY, []) || []).length !== merged.length) return;
+    guestBets = merged; state.bets = s.account; store.set('lotto2.bets', state.bets);
+  })();
+  const unmovedGuest = () => guestBets.filter(b => !b.moved);
+  // Podgląd właściciela „jako gość” (?jako=gosc) – tylko na tym urządzeniu, nic nie wylogowuje.
+  const previewGuest = () => store.get('typer.viewAs', null) === 'guest';
+  /** Konto na tym urządzeniu: zalogowany albo zapamiętany właściciel (np. bez internetu sesja nie może się odświeżyć). */
+  const hasAccount = () => !previewGuest() && !!(Cloud.user || store.get(OWNER_KEY, null));
+  const isIOS = () => TT.devicePlatform(navigator.userAgent, navigator.platform, navigator.maxTouchPoints || 0) === 'ios';
+  const standalone = () => !!(window.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone);
+
+  const GATE_TEXT = {
+    bets: ['📋 Twoje zakłady', 'Zakłady zapisujemy na Twoim koncie. Dzięki temu są bezpieczne, widzisz je na telefonie i komputerze, a aplikacja sama sprawdza je po każdym losowaniu.'],
+    rank: ['🏆 Ranking i grupy', 'Ranking porównuje zakłady zapisane na kontach – pod pseudonimem, bez imienia i nazwiska. Możesz też założyć grupę ze znajomymi.'],
+    push: ['', 'Powiadomienie mówi, że Twoje zakłady są rozliczone – dlatego potrzebne jest konto, na którym są zapisane.'],
+    io: ['', 'Kopia i import dotyczą zakładów zapisanych na koncie.'],
+    systems: ['', 'System skrócony to od kilku do kilkuset zakładów naraz – zapisujemy je na Twoim koncie.'],
+  };
+  /** Spokojna karta: co daje darmowe konto + „Załóż darmowe konto” / „Zaloguj się”. compact = wewnątrz innej karty. */
+  function accountGate(kind, compact = false) {
+    const [title, why] = GATE_TEXT[kind] || GATE_TEXT.bets;
+    const down = !Cloud.enabled
+      ? '<p class="hint">Logowanie chwilowo nie działa (brak połączenia z serwerem kont). Spróbuj później – reszta aplikacji działa normalnie.</p>' : '';
+    const buttons = `<div class="row-gap gate-btns">
+        <button class="btn primary" data-auth="register">Załóż darmowe konto</button>
+        <button class="btn" data-auth="login">Zaloguj się</button></div>`;
+    if (compact) return `<div class="gate compact"><p class="hint">${why} Konto jest darmowe.</p>${down || buttons}</div>`;
+    return `<div class="card gate">
+        <h2>${title}</h2>
+        <p>${why}</p>
+        <ul class="gate-list">
+          <li>☁️ zakłady na wszystkich Twoich urządzeniach</li>
+          <li>✅ automatyczne sprawdzanie po każdym losowaniu</li>
+          <li>🏆 ranking graczy i grupy ze znajomymi</li>
+          <li>🔔 powiadomienia po losowaniu</li>
+        </ul>
+        <p class="hint">Konto jest <b>darmowe</b>. Wystarczy adres e-mail i hasło. Bez konta nadal możesz korzystać ze statystyk, generatora i sprawdzania kuponu.</p>
+        ${down || buttons}
+      </div>`;
+  }
+  function openAuth(mode) {
+    acct.mode = mode === 'register' ? 'register' : 'login';
+    setView('account');
+  }
+
   // ------------------------------------------------------------------ dane
   async function loadGame(key) {
     const res = await fetch(`data/${key}.json?t=${Date.now()}`, { cache: 'no-store' });
@@ -262,9 +321,39 @@
     return out;
   }
 
-  function addBet(nums, method) {
-    const bet = { id: uid(), t: now().toISOString(), nums, method, base: state.game, plus: $('#withPlus').checked, played: false };
+  function addBet(nums, method, base = state.game, plus = $('#withPlus').checked) {
+    const bet = { id: uid(), t: now().toISOString(), nums, method, base, plus: !!plus, played: false };
     state.bets.unshift(bet); saveBets(); Cloud.push(bet); return bet;
+  }
+
+  /** Zapis z Generatora / ręcznego wyboru. Gość: zestawy czekają na zalogowanie (7 dni), otwiera się ekran konta.
+      Zwraca true, gdy zapisano od razu. */
+  function saveSets(sets) {
+    if (hasAccount()) { sets.forEach(s => addBet(s.nums, s.method, s.base, s.plus)); return true; }
+    if (previewGuest()) { toast('Podgląd jako gość: tu otworzyłoby się zakładanie konta (nic nie zapisano)'); openAuth('register'); return false; }
+    const prev = TD.pendingSets(store.get(PENDING_SAVE, null), now().getTime()) || [];
+    const keys = new Set(prev.map(s => s.nums.join(',')));
+    const all = prev.concat(sets.filter(s => !keys.has(s.nums.join(',')))).slice(0, 20);
+    store.set(PENDING_SAVE, { sets: all, at: now().toISOString() });
+    openAuth('register');
+    return false;
+  }
+
+  /** Po zalogowaniu: zapisz zestawy, które czekały. Godzina zakładu = chwila zapisu (nie kliknięcia). */
+  function applyPendingSave() {
+    const p = store.get(PENDING_SAVE, null); if (!p) return;
+    const sets = TD.pendingSets(p, now().getTime());
+    if (!sets) { localStorage.removeItem(PENDING_SAVE); if (p.sets?.length) toast('Zestaw czekał ponad 7 dni i nie został zapisany. Wygeneruj go ponownie.'); return; }
+    if (!canAddBets(sets.length)) return;   // limit planu darmowego – zestaw dalej czeka
+    const clicked = nextDrawTime(new Date(p.at)).date, target = nextDrawTime(now()).date;
+    sets.forEach(s => addBet(s.nums, s.method || 'manual', s.base || 'lotto', s.plus));
+    localStorage.removeItem(PENDING_SAVE);
+    state.lastGen.forEach(g => { if (sets.some(s => s.nums.join(',') === g.nums.join(','))) g.saved = true; });
+    const n = sets.length, what = n === 1 ? 'zestaw' : `${n} ${n < 5 ? 'zestawy' : 'zestawów'}`;
+    toast(clicked !== target
+      ? `Losowanie z ${fmtDate(clicked)} już się odbyło – ${what} zapisano na następne (${fmtDate(target)}).`
+      : `Zapisano ${what}, ${n === 1 ? 'który czekał' : 'które czekały'} na logowanie ✓`);
+    renderAll();
   }
 
   // ------------------------------------------------------------------ weryfikacja zakładów
@@ -308,7 +397,20 @@
     } else alert.hidden = true;
 
 
-    // podsumowanie zakładów
+    // podsumowanie zakładów (bez konta – krótka informacja, bez presji)
+    if (!hasAccount()) {
+      const g = unmovedGuest().length;
+      $('#homeBets').innerHTML = `
+        <div class="card-head"><h2>Twoje zakłady</h2></div>
+        <p class="hint">Zakłady zapisujesz na darmowym koncie – wtedy aplikacja sama sprawdza je po losowaniu i widzisz je na każdym urządzeniu.${g ? ` Na tym urządzeniu masz ${g} ${plural(g, 'zakład', 'zakłady', 'zakładów')} zapisanych wcześniej bez konta – zobaczysz je w zakładce Zakłady.` : ''}</p>
+        <div class="row-gap"><button class="btn sm" data-goto="bets">Dowiedz się więcej</button></div>`;
+    } else renderHomeBets(latest);
+    $('#recentGameLabel').textContent = GAMES[state.game];
+    $('#recentDraws').innerHTML = draws().slice(-10).reverse().map(d => `
+      <div class="draw-row"><div class="when"><b>${fmtShort(d.date)}</b>${dayName(d.date).slice(0, 3)}.${d.no ? ' #' + d.no : ''}</div>${balls(d.nums, 'xs')}</div>`).join('') || '<p class="muted">Brak danych</p>';
+  }
+
+  function renderHomeBets(latest) {
     const ev = state.bets.map(b => [b, evalBet(b)]);
     const pending = ev.filter(([, e]) => e.status !== 'done');
     const lastDone = ev.filter(([, e]) => e.status === 'done' && e.date === latest?.date);
@@ -321,10 +423,6 @@
         ${lastDone.length ? `<span>Najlepszy wynik: <b>${best} traf.</b></span>` : ''}
       </div>
       ${state.bets.length ? '' : '<p class="hint">Nie masz jeszcze zakładów – przejdź do Generatora.</p>'}`;
-
-    $('#recentGameLabel').textContent = GAMES[state.game];
-    $('#recentDraws').innerHTML = draws().slice(-10).reverse().map(d => `
-      <div class="draw-row"><div class="when"><b>${fmtShort(d.date)}</b>${dayName(d.date).slice(0, 3)}.${d.no ? ' #' + d.no : ''}</div>${balls(d.nums, 'xs')}</div>`).join('') || '<p class="muted">Brak danych</p>';
   }
 
   function tickCountdown() {
@@ -419,6 +517,10 @@
   }
 
   function renderSystem() {
+    const guest = !hasAccount();
+    $('#sysGate').innerHTML = guest ? accountGate('systems', true) : '';
+    $('#sysInner').hidden = guest;
+    if (guest) { $('#sysResults').hidden = true; return; }
     const n = state.sysPicked.size, { m, k } = sysGuar();
     $('#sysPicker').innerHTML = RANGE49.map(x => `<button class="pick ${state.sysPicked.has(x) ? 'on' : ''}" data-n="${x}">${x}</button>`).join('');
     $('#sysCount').textContent = n;
@@ -484,6 +586,7 @@
 
   async function saveSystem() {
     const r = state.sysResult; if (!r || r.error || r.saved) return;
+    if (!hasAccount()) { openAuth('register'); return; }
     if (!requireFeature('systems', 'Systemy skrócone')) return;
     const n = r.bets.length; if (n > TS.MAX_BETS || !canAddBets(n)) return;
     const c = sysCost(n);
@@ -583,7 +686,41 @@
   }
 
   // ------------------------------------------------------------------ render: ZAKŁADY
+  // Zakłady gościa (zapisane na urządzeniu bez konta) – karta nad listą.
+  function guestBetsCard() {
+    const g = unmovedGuest(); if (!g.length) return '';
+    const n = g.length, nz = `${n} ${plural(n, 'zakład', 'zakłady', 'zakładów')}`;
+    const risk = 'Zakłady zapisane tylko w przeglądarce mogą zniknąć, np. gdy przeglądarka wyczyści dane strony (zdarza się to zwłaszcza w Safari na iPhonie).';
+    if (hasAccount()) {
+      if (rk.guestLater) return '';
+      return `<div class="card guest-bets">
+          <h2>📱 Zakłady z tego urządzenia</h2>
+          <p>Na tym urządzeniu masz <b>${nz}</b> zapisanych bez konta. Przenieś je na swoje konto, żeby były bezpieczne i widoczne na innych urządzeniach.</p>
+          <p class="hint">${risk} Przeniesione zakłady nie liczą się do rankingu (ranking obejmuje tylko zakłady zapisane na koncie przed losowaniem).</p>
+          <div class="row-gap">
+            <button class="btn primary" id="guestMove">Przenieś na moje konto</button>
+            <button class="btn" id="guestExport">⬇️ Pobierz kopię</button>
+            <button class="btn" id="guestLater">Nie teraz</button>
+          </div>
+          <button class="link-btn" id="guestDelete">Usuń je z tego urządzenia</button>
+        </div>`;
+    }
+    const SHOW = 60;
+    return `<div class="card guest-bets">
+        <h2>📱 Zakłady z tego urządzenia</h2>
+        <p>Masz tu <b>${nz}</b> zapisanych wcześniej bez konta. Możesz je przeglądać poniżej. Po założeniu darmowego konta lub zalogowaniu zaproponujemy przeniesienie ich na konto. Możesz też pobrać kopię w pliku.</p>
+        <p class="hint">${risk}</p>
+        <div class="row-gap"><button class="btn" id="guestExport">⬇️ Pobierz kopię</button></div>
+      </div>
+      ${g.slice().sort((a, b) => String(b.t).localeCompare(String(a.t))).slice(0, SHOW).map(b => betCard(b, true)).join('')}
+      ${n > SHOW ? `<p class="hint" style="text-align:center">Pokazano ${SHOW} z ${n}. Wszystkie są w kopii.</p>` : ''}`;
+  }
+
   function renderBets() {
+    const guest = !hasAccount();
+    $('#betsGate').innerHTML = guest ? accountGate('bets') + guestBetsCard() : guestBetsCard();
+    $('#betsBody').hidden = guest;
+    if (guest) return;
     $$('#betFilter .chip').forEach(c => c.classList.toggle('active', c.dataset.f === state.betFilter));
     const list = state.bets.map(b => ({ b, e: evalBet(b) })).filter(({ b, e }) => {
       switch (state.betFilter) {
@@ -603,7 +740,13 @@
       return;
     }
     const SHOW = 60;
-    $('#betList').innerHTML = list.slice(0, SHOW).map(({ b, e }) => {
+    $('#betList').innerHTML = list.slice(0, SHOW).map(({ b, e }) => betCard(b, false, e)).join('') +
+      (list.length > SHOW ? `<p class="hint" style="text-align:center">Pokazano ${SHOW} z ${list.length}. Zawęź filtrem.</p>` : '');
+  }
+
+  /** Karta zakładu. readonly = zakład gościa (bez przycisków i pola wygranej). */
+  function betCard(b, readonly, e = evalBet(b)) {
+      const id = esc(b.id);
       let status, res = '';
       if (e.status === 'pending') status = `<span class="status wait">⏳ oczekuje</span>`;
       else if (e.status === 'waiting') status = `<span class="status wait">⌛ czekam na wyniki</span>`;
@@ -614,21 +757,20 @@
           ${b.plus ? `<span>Plus: <b>${e.hp ? e.hp.length : '–'}</b> ${e.hp?.length ? '(' + e.hp.join(', ') + ')' : ''}</span>` : ''}</div>`;
       }
       const hitSet = e.status === 'done' ? new Set([...(e.hl || []), ...(e.hp || [])]) : null;
-      return `<div class="card bet" data-id="${b.id}">
+      return `<div class="card bet${readonly ? ' readonly' : ''}" data-id="${id}">
         <div class="bet-top">
-          <div class="bet-info">${METHOD_LABEL[b.method] || esc(b.method)}${b.plus ? ' · z Plusem' : ''}<br>utworzony ${fmtDT(b.t)} ${PL}<br>losowanie ${dayName(e.date).slice(0, 3)}. ${fmtDate(e.date)}, ${DRAW_HOUR}:00 ${PL}</div>
+          <div class="bet-info">${METHOD_LABEL[b.method] || esc(b.method)}${b.plus ? ' · z Plusem' : ''}${readonly && b.played ? ' · zagrany' : ''}<br>utworzony ${fmtDT(b.t)} ${PL}<br>losowanie ${dayName(e.date).slice(0, 3)}. ${fmtDate(e.date)}, ${DRAW_HOUR}:00 ${PL}</div>
           ${status}
         </div>
         ${balls(b.nums, 'sm', hitSet)}
         ${res}
-        ${prizeField(b, e)}
+        ${readonly ? '' : `${prizeField(b, e)}
         <div class="bet-actions">
-          <label class="switch-row"><input type="checkbox" data-played="${b.id}" ${b.played ? 'checked' : ''}><span class="switch"></span><span>Zagrany</span></label>
-          <button class="btn sm" data-again="${b.id}" title="Zagraj te same liczby w następnym losowaniu">↻ Ponów</button>
-          <button class="btn sm" data-del="${b.id}" title="Usuń">🗑</button>
-        </div>
+          <label class="switch-row"><input type="checkbox" data-played="${id}" ${b.played ? 'checked' : ''}><span class="switch"></span><span>Zagrany</span></label>
+          <button class="btn sm" data-again="${id}" title="Zagraj te same liczby w następnym losowaniu">↻ Ponów</button>
+          <button class="btn sm" data-del="${id}" title="Usuń">🗑</button>
+        </div>`}
       </div>`;
-    }).join('') + (list.length > SHOW ? `<p class="hint" style="text-align:center">Pokazano ${SHOW} z ${list.length}. Zawęź filtrem.</p>` : '');
   }
 
   // ------------------------------------------------------------------ bilans wydatków (darmowy dla wszystkich)
@@ -682,7 +824,7 @@
   }
 
   function renderBadge() {
-    const n = state.bets.filter(b => evalBet(b).status !== 'done').length;
+    const n = hasAccount() ? state.bets.filter(b => evalBet(b).status !== 'done').length : 0;
     const el = $('#betsBadge'); el.hidden = !n; el.textContent = n;
   }
 
@@ -706,14 +848,39 @@
   }
 
   // ------------------------------------------------------------------ import / eksport
-  function exportBets() {
-    const payload = JSON.stringify({ app: 'lotto-analizator', v: 2, exported: new Date().toISOString(), bets: state.bets }, null, 1);
+  function exportBets(bets = state.bets, name = 'lotto-zaklady') {
+    const clean = bets.map(({ moved, ...b }) => b);   // eslint-disable-line no-unused-vars
+    const payload = JSON.stringify({ app: 'lotto-analizator', v: 2, exported: new Date().toISOString(), bets: clean }, null, 1);
     const blob = new Blob([payload], { type: 'application/json' });
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob); a.download = `lotto-zaklady-${isoDate(new Date())}.json`;
+    a.href = URL.createObjectURL(blob); a.download = `${name}-${isoDate(new Date())}.json`;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-    $('#ioMsg').textContent = `Wyeksportowano ${state.bets.length} zakładów.`;
+    const msg = `Wyeksportowano ${bets.length} zakładów.`;
+    if (bets === state.bets) $('#ioMsg').textContent = msg; else toast(msg);
+  }
+
+  // ---- zakłady gościa: przeniesienie na konto (tylko na wyraźne polecenie użytkownika)
+  function moveGuestBets() {
+    const todo = unmovedGuest(); if (!todo.length) return;
+    const have = new Set(state.bets.map(b => b.id));
+    const moved = todo.map(TD.toMoved).filter(b => !have.has(b.id));
+    state.bets = state.bets.concat(moved).sort((a, b) => b.t.localeCompare(a.t));
+    saveBets();
+    moved.forEach(b => Cloud.push(b));
+    // kopia zostaje na urządzeniu, dopóki konto nie potwierdzi zapisu (confirmGuestMoved)
+    const ids = new Set(todo.map(b => b.id));
+    guestBets = guestBets.map(b => ids.has(b.id) ? { ...b, moved: true } : b); saveGuest();
+    toast(`Przeniesiono ${todo.length} ${plural(todo.length, 'zakład', 'zakłady', 'zakładów')} na konto ✓`);
+    renderAll();
+    syncNow(true);
+  }
+  /** Usuwa z urządzenia kopie zakładów gościa, które konto już potwierdziło (są w chmurze). */
+  function confirmGuestMoved() {
+    if (!guestBets.some(b => b.moved)) return;
+    const synced = new Set(state.bets.filter(b => b.synced).map(b => b.id));
+    const left = guestBets.filter(b => !(b.moved && synced.has(TD.movedId(b.id))));
+    if (left.length !== guestBets.length) { guestBets = left; saveGuest(); }
   }
 
   function parseCSV(text) {
@@ -810,9 +977,10 @@
 
   function renderAccountButton() {
     const b = $('#accountBtn'); if (!b) return;
-    b.hidden = !Cloud.enabled;
-    b.classList.toggle('on', !!Cloud.user);
-    b.title = Cloud.user ? `Konto: ${Cloud.user.email}` : 'Zaloguj się';
+    const u = previewGuest() ? null : Cloud.user;
+    b.hidden = !Cloud.enabled && !hasAccount();
+    b.classList.toggle('on', hasAccount());
+    b.title = u ? `Konto: ${u.email}` : hasAccount() ? 'Konto (bez połączenia)' : 'Zaloguj się';
   }
 
   function syncLabel() {
@@ -825,8 +993,21 @@
 
   function renderAccount() {
     const el = $('#accountBody');
-    if (!Cloud.enabled) { el.innerHTML = '<p class="hint">Konta nie są jeszcze włączone w tej wersji aplikacji.</p>'; return; }
-    const u = Cloud.user;
+    const u = previewGuest() ? null : Cloud.user;
+    if (!u && hasAccount()) {
+      // zalogowany na tym urządzeniu, ale bez połączenia z serwerem kont (np. offline) – zakłady działają dalej
+      el.innerHTML = `
+        <h2>Konto</h2>
+        <p class="hint">Jesteś zalogowany na tym urządzeniu, ale teraz nie możemy połączyć się z serwerem kont (np. brak internetu). Twoje zakłady są dostępne, a zmiany wyślemy, gdy połączenie wróci.</p>
+        <p class="sync-line" id="syncLine">${syncLabel()}</p>
+        <div class="row-gap" style="margin-top:12px"><button class="btn" id="logoutBtn">Wyloguj</button></div>
+        <p id="acctMsg" class="acct-msg"></p>`;
+      return;
+    }
+    if (!Cloud.enabled) {
+      el.innerHTML = '<h2>Konto</h2><p class="hint">Logowanie chwilowo nie działa (brak połączenia z serwerem kont). Spróbuj później – statystyki, generator i sprawdzanie kuponu działają normalnie.</p>';
+      return;
+    }
     if (acct.recovery && u) {
       el.innerHTML = `
         <h2>Ustaw nowe hasło</h2>
@@ -867,14 +1048,24 @@
       return;
     }
     const reg = acct.mode === 'register', reset = acct.mode === 'reset';
+    const pend = TD.pendingSets(store.get(PENDING_SAVE, null), now().getTime());
+    const join = TD.pendingJoin(store.get(PENDING_JOIN, null), now().getTime());
+    const waiting = [
+      pend ? `💾 ${pend.length === 1 ? 'Twój zestaw czeka' : `Twoje zestawy (${pend.length}) czekają`} – ${pend.length === 1 ? 'zapisze' : 'zapiszą'} się same po zalogowaniu (najwyżej 7 dni).` : '',
+      join ? '👥 Po zalogowaniu automatycznie dołączysz do grupy z zaproszenia.' : '',
+      previewGuest() ? '👁 Podgląd jako gość – logowanie jest tu wyłączone.' : '',
+    ].filter(Boolean);
+    const iosNote = reg && isIOS() && standalone()
+      ? '<p class="hint">📱 Na iPhonie link z e-maila otworzy się w Safari. Po potwierdzeniu wróć do tej aplikacji i zaloguj się tutaj' + (pend || join ? ' – wtedy zapisze się czekający zestaw i dołączysz do grupy.' : '.') + '</p>' : '';
     el.innerHTML = `
+      ${waiting.map(t => `<div class="alert ok">${t}</div>`).join('')}
       <div class="seg" id="acctTabs" style="margin-bottom:14px">
         <button class="seg-btn ${!reg && !reset ? 'active' : ''}" data-mode="login">Logowanie</button>
         <button class="seg-btn ${reg ? 'active' : ''}" data-mode="register">Nowe konto</button>
       </div>
       <p class="hint">${reset ? 'Podaj e-mail – wyślemy link do ustawienia nowego hasła.'
-        : reg ? 'Załóż darmowe konto, a Twoje zakłady będą bezpieczne w chmurze i dostępne na telefonie i komputerze.'
-        : 'Zaloguj się, aby mieć te same zakłady na wszystkich urządzeniach.'}</p>
+        : reg ? 'Konto jest darmowe. Potrzebne jest do zapisywania zakładów: są wtedy bezpieczne, widoczne na telefonie i komputerze, a aplikacja sama sprawdza je po losowaniu.'
+        : 'Zaloguj się, aby zapisywać zakłady i mieć je na wszystkich urządzeniach.'}</p>
       <form id="authForm" class="form">
         <input class="input" type="email" name="email" autocomplete="email" placeholder="Adres e-mail" required>
         ${reset ? '' : `<input class="input" type="password" name="pw" autocomplete="${reg ? 'new-password' : 'current-password'}" placeholder="Hasło${reg ? ' (min. 8 znaków)' : ''}" required minlength="${reg ? 8 : 1}">`}
@@ -883,7 +1074,8 @@
       </form>
       <p id="acctMsg" class="acct-msg"></p>
       ${reg ? '' : `<button class="link-btn" id="resetLink">${reset ? '← Wróć do logowania' : 'Nie pamiętasz hasła?'}</button>`}
-      ${state.bets.length ? `<p class="hint">Masz ${state.bets.length} zakładów na tym urządzeniu – po zalogowaniu możesz je przenieść na konto.</p>` : ''}`;
+      ${iosNote}
+      ${unmovedGuest().length ? `<p class="hint">Masz ${unmovedGuest().length} ${plural(unmovedGuest().length, 'zakład', 'zakłady', 'zakładów')} zapisanych na tym urządzeniu bez konta – po zalogowaniu zaproponujemy przeniesienie ich na konto.</p>` : ''}`;
   }
 
   async function withBusy(btn, fn) {
@@ -898,7 +1090,7 @@
     if (!Cloud.user) return;
     try {
       const merged = await Cloud.fullSync(state.bets);
-      if (merged) { state.bets = merged; saveBets(); renderAll(); }
+      if (merged) { state.bets = merged; saveBets(); confirmGuestMoved(); renderAll(); }
       if (!silent) toast('Zsynchronizowano ✓');
     } catch (e) { if (!silent) toast(e.message); }
   }
@@ -912,22 +1104,28 @@
         if (state.view === 'rank') renderPublicCard();
       }).catch(() => {});
       loadGroups().then(() => { if (state.view === 'rank') renderRank(); });
-      if (rk.pendingJoin) { const c = rk.pendingJoin; rk.pendingJoin = null; tryJoin(c); }
+      const join = TD.pendingJoin(store.get(PENDING_JOIN, null), now().getTime());
+      localStorage.removeItem(PENDING_JOIN);
+      if (join) tryJoin(join);
       if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
-        const local = state.bets.filter(b => !b.synced);
-        if (event === 'SIGNED_IN' && local.length && !store.get('typer.owner', null)) {
-          if (!confirm(`Przenieść ${local.length} zakładów z tego urządzenia na Twoje konto?`)) {
-            state.bets = state.bets.filter(b => b.synced);
-          }
-        }
-        store.set('typer.owner', user.id);
+        // Zakłady gościa nie trafiają na konto automatycznie – leżą osobno (guestBets), przeniesienie tylko przyciskiem.
+        const owner = store.get(OWNER_KEY, null);
+        if (owner && owner !== user.id) { state.bets = []; saveBets(); }   // zakłady innej osoby z tego urządzenia
+        store.set(OWNER_KEY, user.id);
         await syncNow(true);
-        if (event === 'SIGNED_IN' && state.view === 'account' && !acct.recovery) toast('Zalogowano ✓');
+        const hadPending = !!store.get(PENDING_SAVE, null);
+        applyPendingSave();
+        if (event === 'SIGNED_IN' && state.view === 'account' && !acct.recovery) {
+          toast('Zalogowano ✓');
+          if ((hadPending && !store.get(PENDING_SAVE, null)) || unmovedGuest().length) setView('bets');
+        }
       }
     } else {
-      // wylogowanie: usuń dane konta z urządzenia (prywatność na wspólnych urządzeniach)
-      if (store.get('typer.owner', null)) { state.bets = []; saveBets(); store.set('typer.owner', null); }
-      acct.profile = null; acct.recovery = false; rk.groups = []; rk.group = null;
+      // wylogowanie: usuń dane konta z urządzenia (prywatność na wspólnych urządzeniach).
+      // Zakłady gościa zostają; te, których przeniesienia konto jeszcze nie potwierdziło, wracają na listę gościa.
+      if (store.get(OWNER_KEY, null)) { state.bets = []; saveBets(); store.set(OWNER_KEY, null); }
+      if (guestBets.some(b => b.moved)) { guestBets = guestBets.map(({ moved, ...b }) => b); saveGuest(); }   // eslint-disable-line no-unused-vars
+      acct.profile = null; acct.recovery = false; rk.groups = []; rk.group = null; rk.guestLater = false;
       renderAll();
     }
     if (state.view === 'account') renderAccount();
@@ -945,7 +1143,9 @@
       if (t.id === 'changePwBtn') { acct.recovery = true; renderAccount(); }
       if (t.id === 'logoutBtn') withBusy(t, async () => {
         if (Cloud.pending() && !confirm('Część zmian nie została jeszcze wysłana (brak internetu). Wylogować mimo to?')) return;
-        await Cloud.signOut(); toast('Wylogowano');
+        await Cloud.signOut();
+        if (store.get(OWNER_KEY, null)) onAuth(null, 'SIGNED_OUT');   // gdy biblioteka nie miała sesji (offline)
+        toast('Wylogowano');
       });
       if (t.id === 'delAccBtn') withBusy(t, async () => {
         if ($('#delConfirm').value.trim().toUpperCase() !== 'USUŃ') { setAcctMsg('Wpisz USUŃ, aby potwierdzić.'); return; }
@@ -956,6 +1156,7 @@
       e.preventDefault();
       const f = e.target, btn = f.querySelector('button');
       setAcctMsg('');
+      if (f.id === 'authForm' && previewGuest()) { setAcctMsg('Podgląd jako gość – logowanie jest wyłączone. Wyłącz podgląd na niebieskim pasku.'); return; }
       if (f.id === 'authForm') withBusy(btn, async () => {
         const email = f.email.value.trim();
         if (acct.mode === 'reset') { await Cloud.resetPassword(email); setAcctMsg('Wysłaliśmy link na ' + email + '. Sprawdź pocztę (także spam).', true); return; }
@@ -990,6 +1191,7 @@
     const qs = new URLSearchParams(location.search), q = qs.get('jako');
     BENCH = qs.get('pomiar') === 'systemy';
     if (q === 'darmowy') store.set(VIEW_KEY, 'free');
+    else if (q === 'gosc' || q === 'gość') store.set(VIEW_KEY, 'guest');   // podgląd jako osoba bez konta
     else if (q === 'normalnie') localStorage.removeItem(VIEW_KEY);
     if (q || BENCH) history.replaceState(null, '', location.pathname + location.hash);
   } catch { /* brak dostępu do localStorage – podgląd po prostu nie działa */ }
@@ -1019,7 +1221,8 @@
   }
   function renderPreviewBar() {
     const el = $('#previewBar'); if (!el) return;
-    el.hidden = !previewFree();
+    el.hidden = !previewFree() && !previewGuest();
+    const who = $('#previewWho'); if (who) who.textContent = previewGuest() ? 'gość (bez konta)' : 'użytkownik darmowy';
   }
   function decoratePremium() {
     $$('[data-premium]').forEach(el => {
@@ -1064,7 +1267,7 @@
   }
 
   // ------------------------------------------------------------------ ranking i grupy
-  const rk = { scope: 'global', period: 'month', group: null, groups: [], loading: false, pendingJoin: null };
+  const rk = { scope: 'global', period: 'month', group: null, groups: [], loading: false, guestLater: false };
   const fmtAvg = v => Number(v || 0).toFixed(2).replace('.', ',');
 
   function setGroupMsg(t, ok = false) { const el = $('#groupMsg'); el.textContent = t || ''; el.className = 'acct-msg' + (t ? (ok ? ' ok' : ' err') : ''); }
@@ -1106,10 +1309,10 @@
 
   async function renderRank() {
     const gate = $('#rankGate'), body = $('#rankBody');
-    if (!Cloud.enabled || !Cloud.user) {
+    if (!hasAccount()) { body.hidden = true; gate.innerHTML = accountGate('rank'); return; }
+    if (!Cloud.user) {
       body.hidden = true;
-      gate.innerHTML = `<div class="card empty"><h2>🏆 Ranking graczy</h2><p>Porównuj swoje typy z innymi i rywalizuj ze znajomymi w grupach.</p>
-        <button class="btn primary" data-goto="account">Zaloguj się lub załóż konto</button></div>`;
+      gate.innerHTML = `<div class="card empty"><h2>🏆 Ranking graczy</h2><p class="hint">Ranking potrzebuje połączenia z internetem. Spróbuj ponownie, gdy połączenie wróci.</p></div>`;
       return;
     }
     gate.innerHTML = ''; body.hidden = false;
@@ -1199,8 +1402,13 @@
     const m = location.hash.match(/^#join=([A-Za-z0-9]{4,12})$/);
     if (!m) return false;
     history.replaceState(null, '', '#rank');
-    if (Cloud.user) tryJoin(m[1]);
-    else { rk.pendingJoin = m[1]; toast('Zaloguj się, aby dołączyć do grupy'); setView('account'); }
+    if (Cloud.user && !previewGuest()) { tryJoin(m[1]); return true; }
+    if (previewGuest()) { toast('Podgląd jako gość: tu gość przeszedłby do logowania, a potem do grupy'); openAuth('login'); return true; }
+    // kod czeka na urządzeniu (także po przeładowaniu strony, np. po potwierdzeniu e-maila) najwyżej 7 dni
+    store.set(PENDING_JOIN, { code: m[1], at: now().toISOString() });
+    if (hasAccount()) { toast('Dołączysz do grupy, gdy połączenie z internetem wróci'); setView('rank'); return true; }
+    toast('Zaloguj się lub załóż darmowe konto – potem dołączysz do grupy');
+    openAuth('login');
     return true;
   }
 
@@ -1249,7 +1457,8 @@
     }
     if (st === 'ios-old') { el.innerHTML = intro + '<p class="hint">Powiadomienia na iPhonie wymagają iOS 16.4 lub nowszego. Zaktualizuj system: Ustawienia → Ogólne → Uaktualnienia.</p>'; return; }
     if (st !== 'ok' || !Cloud.enabled) { el.innerHTML = intro + '<p class="hint">Ta przeglądarka nie obsługuje powiadomień. Na Androidzie użyj Chrome.</p>'; return; }
-    if (!Cloud.user) { el.innerHTML = intro + '<p class="hint">Powiadomienia są dla osób zalogowanych – wtedy wiemy, które zakłady rozliczyć. <a href="#account">Zaloguj się lub załóż darmowe konto</a>.</p>'; return; }
+    if (!hasAccount()) { el.innerHTML = intro + accountGate('push', true); return; }
+    if (!Cloud.user) { el.innerHTML = intro + '<p class="hint">Ustawienia powiadomień zmienisz, gdy połączenie z internetem wróci.</p>'; return; }
     if (TP.permission() === 'denied') {
       const os = TT.devicePlatform(navigator.userAgent, navigator.platform, navigator.maxTouchPoints || 0);
       el.innerHTML = intro + `<p class="hint">🔕 Powiadomienia są zablokowane na tym urządzeniu. Aby je odblokować: ${PUSH_BLOCKED[os]} Potem wróć tutaj.</p>` + msg;
@@ -1326,9 +1535,16 @@
     if (state.view === 'account') { renderAccount(); return; }
     if (state.view === 'rank') { renderRank(); return; }
     if (state.view === 'premium') { renderPremium(); return; }
-    if (state.view === 'more') renderPush();   // powiadomienia nie zależą od danych losowań
+    if (state.view === 'more') { renderPush(); renderMoreAccess(); }   // nie zależą od danych losowań
     if (!state.data.lotto) return;
     ({ home: renderHome, gen: renderGen, stats: renderStats, bets: renderBets, more: () => {} })[state.view]();
+  }
+  // Więcej: kopia i import oraz usuwanie zakładów tylko z kontem
+  function renderMoreAccess() {
+    const guest = !hasAccount();
+    $('#ioGate').innerHTML = guest ? accountGate('io', true) : '';
+    $('#ioBody').hidden = guest;
+    $('#wipeBtn').hidden = guest;
   }
   function renderAll() {
     $$('.topbar .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.game === state.game));
@@ -1348,6 +1564,17 @@
     $('#refreshBtn').addEventListener('click', () => refresh(true));
     document.addEventListener('click', e => {
       const g = e.target.closest('[data-goto]'); if (g) setView(g.dataset.goto);
+      const a = e.target.closest('[data-auth]'); if (a) openAuth(a.dataset.auth);
+      // karta „Zakłady z tego urządzenia”
+      if (e.target.id === 'guestMove') moveGuestBets();
+      if (e.target.id === 'guestExport') exportBets(unmovedGuest(), 'typer49-zaklady-z-urzadzenia');
+      if (e.target.id === 'guestLater') { rk.guestLater = true; renderBets(); }
+      if (e.target.id === 'guestDelete') {
+        const n = unmovedGuest().length;
+        if (n && confirm(`Usunąć ${n} ${plural(n, 'zakład', 'zakłady', 'zakładów')} zapisanych na tym urządzeniu bez konta? Tego nie da się cofnąć. Jeśli chcesz je zachować, najpierw pobierz kopię albo przenieś je na konto.`)) {
+          guestBets = guestBets.filter(b => b.moved); saveGuest(); renderBets(); toast('Usunięto zakłady z tego urządzenia');
+        }
+      }
     });
 
     // generator
@@ -1390,14 +1617,17 @@
     });
     $('#genResults').addEventListener('click', e => {
       const s = e.target.closest('[data-save]');
+      const plus = $('#withPlus').checked, asSet = g => ({ nums: g.nums, method: g.method, base: state.game, plus });
       if (s) {
         if (!canAddBets(1)) return;
-        const g = state.lastGen[+s.dataset.save]; addBet(g.nums, g.method); g.saved = true; renderGenResults(); toast('Zapisano zakład ✓');
+        const g = state.lastGen[+s.dataset.save];
+        if (saveSets([asSet(g)])) { g.saved = true; renderGenResults(); toast('Zapisano zakład ✓'); }
       }
       if (e.target.id === 'saveAll') {
-        if (!canAddBets(state.lastGen.filter(g => !g.saved).length)) return;
-        let n = 0; state.lastGen.forEach(g => { if (!g.saved) { addBet(g.nums, g.method); g.saved = true; n++; } });
-        renderGenResults(); toast(n ? `Zapisano ${n} zakładów ✓` : 'Wszystkie już zapisane');
+        const todo = state.lastGen.filter(g => !g.saved);
+        if (!todo.length) { toast('Wszystkie już zapisane'); return; }
+        if (!canAddBets(todo.length)) return;
+        if (saveSets(todo.map(asSet))) { todo.forEach(g => { g.saved = true; }); renderGenResults(); toast(`Zapisano ${todo.length} zakładów ✓`); }
       }
     });
     $('#picker').addEventListener('click', e => {
@@ -1415,7 +1645,8 @@
     });
     $('#pickSave').addEventListener('click', () => {
       if (!canAddBets(1)) return;
-      addBet([...state.picked].sort((a, b) => a - b), 'manual'); state.picked.clear(); renderPicker(); toast('Zapisano zakład ✓');
+      const set = { nums: [...state.picked].sort((a, b) => a - b), method: 'manual', base: state.game, plus: $('#withPlus').checked };
+      if (saveSets([set])) { state.picked.clear(); renderPicker(); toast('Zapisano zakład ✓'); }
     });
 
     // statystyki
@@ -1466,7 +1697,7 @@
     // więcej
     $('#checkBtn').addEventListener('click', checkTicket);
     $('#checkInput').addEventListener('keydown', e => { if (e.key === 'Enter') checkTicket(); });
-    $('#exportBtn').addEventListener('click', exportBets);
+    $('#exportBtn').addEventListener('click', () => exportBets());
     $('#importFile').addEventListener('change', e => { const f = e.target.files[0]; if (f) importFile(f); e.target.value = ''; });
     $('#shareBtn').addEventListener('click', shareBets);
     $('#manAdd').addEventListener('click', addManualDraw);

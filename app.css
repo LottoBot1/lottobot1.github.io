@@ -361,3 +361,14 @@ a { color: var(--accent2); }
 .bench-table table { width: 100%; border-collapse: collapse; font-size: .8rem; font-variant-numeric: tabular-nums; }
 .bench-table th, .bench-table td { padding: 4px 3px; border-bottom: 1px solid var(--card-b); text-align: right; white-space: nowrap; }
 .bench-table td small { display: block; font-size: .68rem; color: var(--muted); }
+
+/* konto wymagane do zapisywania (Etap 4, krok 4) */
+.gate h2 { margin-bottom: 6px; }
+.gate-list { margin: 10px 0 12px; padding-left: 0; list-style: none; display: grid; gap: 6px; }
+.gate-list li { font-size: .95rem; }
+.gate-btns { margin-top: 10px; flex-wrap: wrap; }
+.gate.compact { margin-top: 4px; }
+.guest-bets h2 { margin-bottom: 6px; }
+.guest-bets .row-gap { flex-wrap: wrap; margin-top: 8px; }
+.guest-bets .link-btn { margin-top: 10px; font-size: .85rem; opacity: .8; }
+.bet.readonly { opacity: .92; }
