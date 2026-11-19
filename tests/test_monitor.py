@@ -136,7 +136,7 @@ class Push(unittest.TestCase):
 
     def test_niezakonczone(self):
         hang = self.h(started_at="2026-11-19T23:00:00+00:00", attempts=1, has_error=False)
-        self.assertIsNone(M.push_problem(hang, at("2026-11-20T00:05:00Z")))     # przed 3 h
+        self.assertIsNone(M.push_problem(hang, at("2026-11-19T23:50:00Z")))     # przed 3 h
         self.assertIn("nie zakończyła", M.push_problem(hang, at("2026-11-20T01:15:00Z")))
 
     def test_stare_losowanie_i_brak_danych(self):
