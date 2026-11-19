@@ -1,0 +1,82 @@
+# Strażnik Typer49: sprawdza wyniki, automat, bazę i Gmaila, a o problemach alarmuje
+# przez healthchecks.io (e-mail do właściciela). Logika: scripts/monitor.py.
+#
+# Tajne klucze (Settings → Secrets and variables → Actions):
+#   HC_PING_URL             – adres „sygnału życia” z healthchecks.io
+#   GMAIL_MONITOR_PASSWORD  – osobne hasło aplikacji Gmail tylko dla Strażnika
+# Bez nich Strażnik działa, ale pomija meldunek / sprawdzanie Gmaila.
+#
+# Gmail: tylko logowanie (bez wysyłania), najwyżej raz na dobę (UTC) – pilnuje tego pamięć
+# podręczna Actions z kluczem z datą; drugi przebieg tego samego dnia pomija Gmaila.
+name: Strażnik
+
+on:
+  schedule:
+    - cron: "30 6 * * *"        # codziennie 06:30 UTC (7:30/8:30 czasu polskiego) – z Gmailem
+    - cron: "15 2 * * 3,5,0"    # po losowaniach (śr/pt/nd 02:15 UTC) – bez Gmaila
+  workflow_dispatch:
+    inputs:
+      test_alarm:
+        description: "Próbny alarm (wyślij testowe ostrzeżenie)"
+        type: boolean
+        default: false
+      check_gmail:
+        description: "Sprawdź też Gmaila (jeśli dziś jeszcze nie sprawdzano)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: read       # odczyt przebiegów automatu wyników
+
+concurrency:
+  group: monitor
+  cancel-in-progress: false
+
+jobs:
+  check:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Czy sprawdzać dziś Gmaila?
+        id: gm
+        run: |
+          echo "day=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event.schedule }}" = "30 6 * * *" ] || [ "${{ inputs.check_gmail }}" = "true" ]; then
+            echo "want=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "want=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Gmail już sprawdzony dziś?
+        id: gmcache
+        if: steps.gm.outputs.want == 'true'
+        uses: actions/cache/restore@v4
+        with:
+          path: .gmail-checked
+          key: gmail-checked-${{ steps.gm.outputs.day }}
+          lookup-only: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Sprawdź, czy wszystko działa
+        env:
+          HC_PING_URL: ${{ secrets.HC_PING_URL }}
+          GMAIL_USER: typer49.kontakt@gmail.com
+          GMAIL_PASSWORD: ${{ secrets.GMAIL_MONITOR_PASSWORD }}
+          CHECK_GMAIL: ${{ steps.gm.outputs.want == 'true' && steps.gmcache.outputs.cache-hit != 'true' }}
+          TEST_ALARM: ${{ inputs.test_alarm == true }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python scripts/monitor.py
+
+      # monitor.py tworzy plik .gmail-checked tylko wtedy, gdy naprawdę próbował się zalogować
+      - name: Zapisz pamięć „Gmail sprawdzony dziś”
+        if: always() && hashFiles('.gmail-checked') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: .gmail-checked
+          key: gmail-checked-${{ steps.gm.outputs.day }}

@@ -26,7 +26,7 @@ W przyszłości część funkcji ma być płatna (Premium), a aplikacja ma trafi
 | **Moduł konta** (`cloud.js`, `config.js`) | Logowanie i wysyłanie zakładów do chmury. Działa też bez internetu, bo zmiany czekają i wysyłają się później. |
 | **Tryb offline i instalacja** (`sw.js`, `manifest.webmanifest`, `icons/`) | Działanie bez internetu, ikona i nazwa na ekranie telefonu. |
 | **Dane losowań** (`data/*.json`) | Wszystkie wyniki od 1957 r. (Lotto) i od 2012 r. (Lotto Plus). |
-| **Automat na GitHubie** (`.github/workflows/`, `scripts/update_data.py`) | Po każdym losowaniu pobiera nowe wyniki, zapisuje je i publikuje stronę na nowo. Codziennie „budzi” też bazę danych. |
+| **Automat na GitHubie** (`.github/workflows/`, `scripts/update_data.py`) | Po każdym losowaniu pobiera nowe wyniki, zapisuje je i publikuje stronę na nowo. Codziennie „budzi” też bazę danych. Strażnik (`monitor.yml`, `scripts/monitor.py`) codziennie sprawdza, czy wszystko działa, i alarmuje e-mailem przez healthchecks.io. |
 | **Baza danych Supabase** (`supabase/*.sql`) | Przechowuje konta, zakłady, rankingi i grupy, pilnuje, żeby każdy widział tylko swoje dane, i sama pobiera wyniki do rankingów. |
 | **Wysyłka e-maili** (ustawienia w Supabase) | Potwierdzenie konta i reset hasła, wysyłane ze skrzynki typer49.kontakt@gmail.com. |
 | **Zasady prywatności** (`privacy.html`) | Informacje wymagane przez RODO. |
@@ -35,7 +35,7 @@ W przyszłości część funkcji ma być płatna (Premium), a aplikacja ma trafi
 
 There is no build step, bundler or linter – plain HTML/CSS/vanilla JS served as static files.
 
-- Tests: `node --test tests/*.test.js` (Node's built-in runner; pass the files – Node 22 rejects a bare `tests/` folder). Single test: `node --test --test-name-pattern "zmiana czasu" tests/time.test.js`. Node is not installed on the owner's laptop – tests run on GitHub Actions on every push to any branch, in 6 time zones (`TZ=...`). Push a work branch to run tests without publishing.
+- Tests: `node --test tests/*.test.js` (Node's built-in runner; pass the files – Node 22 rejects a bare `tests/` folder). Single test: `node --test --test-name-pattern "zmiana czasu" tests/time.test.js`. Node is not installed on the owner's laptop – tests run on GitHub Actions on every push to any branch, in 6 time zones (`TZ=...`). Push a work branch to run tests without publishing. Monitor tests: `python -m unittest discover -s tests -p "test_*.py"` (also run in the `test` job).
 
 - Local preview (needs an HTTP server; opening `index.html` from disk cannot load `data/*.json`):
   `python -m http.server 8000` from the repo root (Python is not installed on the owner's laptop; any static server works).
@@ -71,6 +71,9 @@ There is no build step, bundler or linter – plain HTML/CSS/vanilla JS served a
 ### Data pipeline
 GitHub Action cron (after Tue/Thu/Sat draws + daily) → `scripts/update_data.py` downloads `mbnet.com.pl/dl.txt` and `dl_plus.txt` (lotto.pl's API returns 403) → merges **by draw number, never by date** (old years had several draws per day; merging by date once deleted 956 draws) and refuses to write fewer draws than already stored → commits `data/` → deploys Pages → Supabase imports from Pages.
 
+### Monitoring („Strażnik”)
+`.github/workflows/monitor.yml` runs `scripts/monitor.py` (stdlib only) daily at 06:30 UTC and after draws (Wed/Fri/Sun 02:15 UTC). Checks: published results not older than 3.5 days (the alert text must keep the holiday sentence), latest `update-data.yml` run on main succeeded, Supabase `draws` caught up with the site within 8 h of the draw, Gmail SMTP login (no e-mail sent). Rules from the owner: Supabase is queried **only with the public key from `config.js`** (`key_is_public` refuses anything else – never `service_role`); Gmail login **at most once per UTC day** (the script writes `.gmail-checked`, the workflow stores it in the Actions cache keyed by date). Result goes to healthchecks.io (`HC_PING_URL` secret: success ping or `/fail` with the Polish report), which e-mails the owner and also alerts when no ping arrives (GitHub Actions stopped). On problems the job also fails, so GitHub e-mails as a second channel. Secrets: `HC_PING_URL`, `GMAIL_MONITOR_PASSWORD` (a separate Gmail app password, not the Supabase one). Manual run: Actions → Strażnik → Run workflow (`test_alarm`, `check_gmail`). Tests: `tests/test_monitor.py` (Python `unittest`, run in the `test` job).
+
 ## Stan projektu
 
 ### Skończone i sprawdzone w działaniu
@@ -94,7 +97,8 @@ GitHub Action cron (after Tue/Thu/Sat draws + daily) → `scripts/update_data.py
   - adres `lottobot1.github.io` zamiast własnej domeny;
   - e-maile z Gmaila (limit ok. 500 dziennie);
   - dane z mbnet.com.pl bez oficjalnej zgody i licencji.
-- **Automatyczne testy obejmują tylko logikę czasu.** Reszta (synchronizacja, ranking w aplikacji, generator) jest sprawdzana ręcznie.
+- **Strażnik (Etap 3) czeka na konfigurację.** Kod jest gotowy, ale alarmy zaczną przychodzić dopiero po założeniu konta w healthchecks.io i wpisaniu tajnych kluczy w GitHubie (`HC_PING_URL`, `GMAIL_MONITOR_PASSWORD`).
+- **Automatyczne testy obejmują tylko logikę czasu, zegar urządzenia i progi alarmów Strażnika.** Reszta (synchronizacja, ranking w aplikacji, generator) jest sprawdzana ręcznie.
 - **Korekta zegara bez internetu jest przybliżona.** Gdy ktoś przestawi zegar bez internetu, aplikacja do 24 h liczy według starego pomiaru. Po połączeniu z internetem od razu mierzy na nowo.
 
 ## Problemy i ryzyka w kodzie
@@ -117,8 +121,10 @@ GitHub Action cron (after Tue/Thu/Sat draws + daily) → `scripts/update_data.py
 - **Zależności, które mogą się zestarzeć.**
   - Biblioteka Supabase jest przypięta do starszej wersji 2.45.4.
   - Używany jest „starszy” typ klucza (anon JWT), a Supabase zaleca nowe klucze „publishable”. Jeśli wyłączy stare, logowanie przestanie działać do czasu podmiany klucza.
-- **Ciche awarie e-maili.** Zmiana hasła do skrzynki typer49.kontakt@gmail.com unieważnia hasło aplikacji i e-maile przestają wychodzić. Nikt nie dostaje o tym ostrzeżenia.
-- **Darmowy plan Supabase** usypia bazę po 7 dniach bez ruchu i ma limity. Chroni przed tym codzienny automat, więc gdy automat GitHuba przestanie działać, baza zaśnie.
+- **Awarie e-maili.** Zmiana hasła do skrzynki typer49.kontakt@gmail.com unieważnia hasła aplikacji i e-maile przestają wychodzić. Strażnik wykrywa to raz dziennie przez próbne logowanie. Nie wykryje za to przekroczenia limitu Gmaila (ok. 500 dziennie) ani błędnych ustawień SMTP w samym Supabase.
+- **Darmowy plan Supabase** usypia bazę po 7 dniach bez ruchu i ma limity. Chroni przed tym codzienny automat. Gdy automat GitHuba przestanie działać, baza zaśnie, ale healthchecks.io zaalarmuje o braku meldunków Strażnika.
+- **Alarmy Strażnika przychodzą tylko przy zmianie stanu.** healthchecks.io wysyła e-mail, gdy stan zmieni się z „OK” na „problem” i z powrotem. Nowy problem, który pojawi się, zanim stary zostanie naprawiony, nie da osobnego e-maila z healthchecks.io. Każdy nieudany przebieg da za to e-mail z GitHuba.
+- **Fałszywe alarmy w święta.** Gdy losowanie zostanie odwołane lub przesunięte, przerwa może przekroczyć 3,5 dnia.
 - **Ryzyka prawne przy zarabianiu:** znak towarowy „Lotto”, ograniczenia reklamy gier hazardowych, licencja na dane. Szczegóły są w zasadach projektu poniżej.
 
 ## Project rules
@@ -139,7 +145,7 @@ Punkty poniżej to **Etap 1–6**. Tylko tak nazywamy etapy w rozmowach, commita
 
 - **Etap 1** ✅ (zrobione 18–19.11.2026) Poprawka czasu: rozliczanie zakładów zawsze według czasu polskiego (Europe/Warsaw), niezależnie od strefy i zegara urządzenia, zgodnie z logiką bazy (`bet_results`). Ostrzeżenie dla użytkownika, gdy zegar urządzenia jest przestawiony o więcej niż 15 min. Do tej logiki powstaje automatyczny test.
 - **Etap 2** ✅ (zrobione 19.11.2026) Szybkie poprawki: napis „rankingi (wkrótce)”, przestarzały README.md, ekran Premium bez wzmianek o Google Play (aplikacja działa też na iPhonie).
-- **Etap 3** Ostrzeżenia o awariach: właściciel dostaje e-mail, gdy przez ponad 3 dni nie przyjdą nowe wyniki, gdy automat GitHuba się wysypie lub gdy przestaną wychodzić e-maile.
+- **Etap 3** ⏳ (kod gotowy 19.11.2026, czeka na konfigurację przez właściciela) Ostrzeżenia o awariach: właściciel dostaje e-mail, gdy przez ponad 3,5 dnia nie przyjdą nowe wyniki, gdy automat GitHuba się wysypie lub stanie, gdy baza przestanie pobierać wyniki lub gdy przestanie działać hasło do Gmaila. Rozwiązanie: Strażnik + healthchecks.io (szczegóły w „Monitoring”).
 - **Etap 4** Nowe funkcje, każda osobno: powiadomienia po losowaniu, bilans wydatków, systemy skrócone.
 - **Etap 5** Wydajność przed promocją: ranking, zapis zakładów i synchronizacja przy tysiącach użytkowników.
 - **Etap 6** Google Play (aplikacja na Androida przez TWA) i płatności Premium (Play Billing) – dopiero gdy właściciel potwierdzi, że kwestie prawne (znak „Lotto”, reklama gier, licencja na dane) są zamknięte w osobnym projekcie.

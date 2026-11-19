@@ -52,6 +52,14 @@ Strona jest publikowana na GitHub Pages z tego repozytorium (Settings → Pages 
 
 Żeby opublikować zmianę, wystarczy commit i push na `main` (przed pushem `git pull`, bo automat sam dopisuje wyniki). Zmianę bez publikacji, np. tylko do uruchomienia testów, wysyła się na osobną gałąź.
 
+**Strażnik** ([`.github/workflows/monitor.yml`](.github/workflows/monitor.yml), [`scripts/monitor.py`](scripts/monitor.py)) uruchamia się codziennie rano i po losowaniach. Sprawdza:
+- czy wyniki na stronie nie są starsze niż 3,5 dnia,
+- czy automat wyników działa,
+- czy baza Supabase ma aktualne wyniki (tylko publiczny klucz z `config.js`),
+- czy działa hasło aplikacji do Gmaila (raz dziennie, samo logowanie).
+
+Meldunek trafia do healthchecks.io, które wysyła e-mail, gdy coś jest nie tak albo gdy meldunki przestaną przychodzić. Potrzebne tajne klucze w Settings → Secrets: `HC_PING_URL` i `GMAIL_MONITOR_PASSWORD`. Próbny alarm: Actions → Strażnik → Run workflow → zaznacz „Próbny alarm”.
+
 Zmiany w bazie (pliki w [`supabase/`](supabase/)) wkleja się ręcznie w Supabase → SQL Editor: najpierw `schema.sql`, potem `stage2.sql`. Oba pliki można bezpiecznie uruchomić ponownie.
 
 ## Instalacja na telefonie
@@ -76,7 +84,7 @@ python -m http.server 8000
 
 i wejście na <http://localhost:8000>. Ręczna aktualizacja danych: `python scripts/update_data.py`.
 
-Testy (wymagają Node.js): `node --test tests/*.test.js`.
+Testy: `node --test tests/*.test.js` (Node.js) i `python -m unittest discover -s tests -p "test_*.py"` (Strażnik).
 
 ## Struktura
 
@@ -90,8 +98,9 @@ privacy.html                  – polityka prywatności (RODO)
 data/lotto.json               – wyniki Lotto od 1957 r.
 data/lottoplus.json           – wyniki Lotto Plus od 2012 r.
 scripts/update_data.py        – pobieranie wyników (bez dodatkowych bibliotek)
+scripts/monitor.py            – Strażnik: sprawdzanie, czy wszystko działa, i alarmy
 supabase/                     – schemat bazy, ranking, grupy (SQL)
-tests/                        – testy automatyczne (czas polski, zegar urządzenia)
+tests/                        – testy automatyczne (czas polski, zegar urządzenia, Strażnik)
 .github/workflows/            – testy, harmonogram automatu i publikacja na GitHub Pages
 ```
 
