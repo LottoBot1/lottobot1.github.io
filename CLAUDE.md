@@ -136,6 +136,7 @@ GitHub Action cron (after Tue/Thu/Sat draws + daily) → `scripts/update_data.py
 ## Project rules
 
 - Keep the public project anonymous: commit as `lotto-bot <lotto-bot@users.noreply.github.com>` (set in the repo's git config) and never put the owner's real name or personal GitHub username into code, commits or docs.
+- Zewnętrzne biblioteki zawsze z przypiętą wersją (dokładny numer, bez `^`, `~` ani „latest”), np. `@supabase/supabase-js@2.45.4`, `npm:@pushforge/builder@2.0.5` w funkcji Supabase.
 - Don't use "Lotto" as the product name or imitate Totalizator Sportowy branding (trademark); game names are used only descriptively.
 - Aplikacja musi działać na Androidzie (Chrome) i iPhonie (Safari, także zainstalowana na ekranie początkowym). Każdą zmianę sprawdzaj pod kątem obu systemów, a różnice opisuj właścicielowi.
 - Never claim the app improves the chance of winning (store policy and consumer law); keep the 18+/responsible-gaming notes.

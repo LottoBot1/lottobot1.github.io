@@ -931,6 +931,7 @@
       renderAll();
     }
     if (state.view === 'account') renderAccount();
+    syncPush(event).then(() => { if (state.view === 'more') renderPush(); });
   }
 
   function bindAccount() {
@@ -1036,7 +1037,7 @@
     ['Model trendu', '–', '✓'],
     ['Statystyki z 250 / 500 / wszystkich losowań', '–', '✓'],
     ['Mapa „Model”, najczęstsze pary', '–', '✓'],
-    ['Powiadomienia po losowaniu (wkrótce)', '–', '✓'],
+    ['Powiadomienia po losowaniu (wkrótce)', '✓', '✓'],
     ['Bilans wydatków (odpowiedzialna gra)', '✓', '✓'],
     ['Systemy skrócone (7–15 liczb, gwarancja 3–5 trafień)', '–', '✓'],
     ['Bez reklam (gdy pojawią się reklamy)', '–', '✓'],
@@ -1203,6 +1204,116 @@
     return true;
   }
 
+  // ------------------------------------------------------------------ powiadomienia (Etap 4, krok 3)
+  // Tylko dla zalogowanych, darmowe. Adres urządzenia zapisuje push_subscribe() w bazie; treść układa funkcja Supabase.
+  const TP = window.TyperPush;
+  const PUSH_HIDE = 'typer.pushHide';     // „Ukryj szczegóły na zablokowanym ekranie” (kopia ustawienia z bazy)
+  const PUSH_SAVED = 'typer.pushSaved';   // {user, day, ep} – adres odświeżany w bazie najwyżej raz dziennie
+  const pn = { sub: null, busy: false, msg: '', ok: false };
+
+  const pushMark = sub => store.set(PUSH_SAVED, { user: Cloud.user?.id, day: isoDate(now()), ep: sub.endpoint.slice(-24) });
+
+  // Przy starcie i logowaniu: adres tego urządzenia należy do zalogowanej osoby i jest świeży.
+  async function syncPush(event) {
+    if (!TP || !Cloud.enabled) return;
+    pn.sub = await TP.current();
+    if (!pn.sub) return;
+    if (!Cloud.user) {
+      // nikt nie jest zalogowany (np. wylogowanie albo wygasła sesja) – urządzenie nie może dostawać cudzych wyników;
+      // bez internetu nie ruszamy (sesja mogła się po prostu nie odświeżyć)
+      if (event === 'SIGNED_OUT' || navigator.onLine) { await TP.unsubscribeLocal(); pn.sub = null; }
+      return;
+    }
+    const s = store.get(PUSH_SAVED, null);
+    if (s && s.user === Cloud.user.id && s.day === isoDate(now()) && s.ep === pn.sub.endpoint.slice(-24)) return;
+    try { await Cloud.pushSave(pn.sub, store.get(PUSH_HIDE, false)); pushMark(pn.sub); } catch { /* spróbujemy przy następnym otwarciu */ }
+  }
+
+  const PUSH_BLOCKED = {
+    android: 'Chrome: stuknij ikonę obok adresu strony → Uprawnienia → Powiadomienia → Zezwalaj. Zainstalowana aplikacja: przytrzymaj ikonę Typer49 → Informacje o aplikacji → Powiadomienia.',
+    ios: 'Ustawienia → Powiadomienia → Typer49 → Zezwalaj na powiadomienia.',
+    other: 'Kliknij ikonę kłódki obok adresu strony i zezwól na powiadomienia.',
+  };
+
+  function renderPush() {
+    const el = $('#pushBody'); if (!el) return;
+    const st = TP ? TP.state() : 'unsupported';
+    const msg = pn.msg ? `<p class="acct-msg ${pn.ok ? 'ok' : 'err'}">${esc(pn.msg)}</p>` : '';
+    const intro = `<p class="hint">Po każdym losowaniu (wt, czw, sob ok. 22:00 ${PL}) dostaniesz powiadomienie, że są wyniki i Twoje zakłady są rozliczone. Stuknięcie otwiera Zakłady.</p>`;
+    const foot = `<p class="hint">Powiadomienia włącza się osobno na każdym telefonie i komputerze. <a href="privacy.html">Zasady prywatności</a>.</p>`;
+    if (st === 'ios-install') {
+      el.innerHTML = intro + `<p class="hint">📱 Na iPhonie i iPadzie powiadomienia działają tylko w aplikacji dodanej do ekranu początkowego (iOS 16.4 lub nowszy):<br>
+        1. W Safari stuknij przycisk Udostępnij (kwadrat ze strzałką).<br>2. Wybierz „Do ekranu początkowego”.<br>
+        3. Otwórz Typer49 ikoną z ekranu początkowego i włącz powiadomienia tutaj.</p>`;
+      return;
+    }
+    if (st === 'ios-old') { el.innerHTML = intro + '<p class="hint">Powiadomienia na iPhonie wymagają iOS 16.4 lub nowszego. Zaktualizuj system: Ustawienia → Ogólne → Uaktualnienia.</p>'; return; }
+    if (st !== 'ok' || !Cloud.enabled) { el.innerHTML = intro + '<p class="hint">Ta przeglądarka nie obsługuje powiadomień. Na Androidzie użyj Chrome.</p>'; return; }
+    if (!Cloud.user) { el.innerHTML = intro + '<p class="hint">Powiadomienia są dla osób zalogowanych – wtedy wiemy, które zakłady rozliczyć. <a href="#account">Zaloguj się lub załóż darmowe konto</a>.</p>'; return; }
+    if (TP.permission() === 'denied') {
+      const os = TT.devicePlatform(navigator.userAgent, navigator.platform, navigator.maxTouchPoints || 0);
+      el.innerHTML = intro + `<p class="hint">🔕 Powiadomienia są zablokowane na tym urządzeniu. Aby je odblokować: ${PUSH_BLOCKED[os]} Potem wróć tutaj.</p>` + msg;
+      return;
+    }
+    const on = !!pn.sub, hide = store.get(PUSH_HIDE, false), dis = pn.busy ? 'disabled' : '';
+    el.innerHTML = intro + `
+      <label class="switch-row"><input type="checkbox" id="pushToggle" ${on ? 'checked' : ''} ${dis}><span class="switch"></span><span>Powiadomienia po losowaniu</span></label>
+      ${on ? `
+      <label class="switch-row"><input type="checkbox" id="pushHide" ${hide ? 'checked' : ''} ${dis}><span class="switch"></span><span>Ukryj szczegóły na zablokowanym ekranie</span></label>
+      <p class="hint">Po włączeniu powiadomienie pokazuje tylko „Nowe wyniki w Typer49”.</p>
+      <button class="btn" id="pushTestBtn" ${dis}>🔔 Wyślij próbne powiadomienie</button>
+      <p class="hint">Automatyczne powiadomienia po losowaniu uruchomimy wkrótce. Już teraz możesz sprawdzić, czy powiadomienia docierają na to urządzenie.</p>` : ''}
+      ${msg}${foot}`;
+  }
+
+  async function pushBusy(fn) {
+    if (pn.busy) return;
+    pn.busy = true; pn.msg = '';
+    const job = fn();   // fn startuje od razu – prośba o zgodę musi być wywołana w chwili stuknięcia
+    renderPush();
+    try { await job; } catch (e) { pn.msg = e.message || String(e); pn.ok = false; }
+    finally { pn.busy = false; renderPush(); }
+  }
+  const pushMsg = (m, ok) => { pn.msg = m; pn.ok = ok; };
+
+  async function pushOn() {
+    if (navigator.onLine === false) throw new Error('Brak internetu. Włącz powiadomienia, gdy będziesz online.');
+    const sub = await TP.subscribe(CFG.vapidPublicKey);
+    if (!sub) { pushMsg('Nie udzielono zgody na powiadomienia.', false); return; }
+    try { await Cloud.pushSave(sub, store.get(PUSH_HIDE, false)); }
+    catch (e) { await TP.unsubscribeLocal(); throw e; }
+    pn.sub = sub; pushMark(sub);
+    pushMsg('Powiadomienia włączone ✓', true);
+  }
+  async function pushOff() {
+    await Cloud.pushOffDevice();
+    pn.sub = null; store.set(PUSH_SAVED, null);
+    pushMsg('Powiadomienia na tym urządzeniu wyłączone.', true);
+  }
+  async function pushHide(hide) {
+    await Cloud.pushSave(pn.sub, hide);
+    store.set(PUSH_HIDE, hide); pushMark(pn.sub);
+    pushMsg(hide ? 'Szczegóły będą ukryte ✓' : 'Szczegóły będą widoczne ✓', true);
+  }
+  async function pushTestSend() {
+    if (!pn.sub) return;
+    await Cloud.pushSave(pn.sub, store.get(PUSH_HIDE, false));   // gdyby adres zniknął z bazy
+    pushMark(pn.sub);
+    const r = await Cloud.pushTest();
+    if (r === 'za_czesto') { pushMsg('Próbne powiadomienie można wysłać raz na minutę. Spróbuj za chwilę.', false); return; }
+    if (r !== 'ok') { pushMsg('Nie udało się wysłać. Wyłącz i włącz powiadomienia, potem spróbuj ponownie.', false); return; }
+    pushMsg('Wysłano ✓ Powiadomienie powinno pojawić się w ciągu kilku sekund. Jeśli go nie widzisz, sprawdź tryb „Nie przeszkadzać”.', true);
+  }
+
+  function bindPush() {
+    const el = $('#pushBody'); if (!el) return;
+    el.addEventListener('change', e => {
+      if (e.target.id === 'pushToggle') { const on = e.target.checked; pushBusy(() => (on ? pushOn() : pushOff())); }
+      if (e.target.id === 'pushHide') { const h = e.target.checked; pushBusy(() => pushHide(h)); }
+    });
+    el.addEventListener('click', e => { if (e.target.id === 'pushTestBtn') pushBusy(pushTestSend); });
+  }
+
   // ------------------------------------------------------------------ nawigacja i zdarzenia
   function setView(v) {
     state.view = v;
@@ -1215,6 +1326,7 @@
     if (state.view === 'account') { renderAccount(); return; }
     if (state.view === 'rank') { renderRank(); return; }
     if (state.view === 'premium') { renderPremium(); return; }
+    if (state.view === 'more') renderPush();   // powiadomienia nie zależą od danych losowań
     if (!state.data.lotto) return;
     ({ home: renderHome, gen: renderGen, stats: renderStats, bets: renderBets, more: () => {} })[state.view]();
   }
@@ -1383,6 +1495,7 @@
   bind();
   bindAccount();
   bindRank();
+  bindPush();
   decoratePremium();
   const startView = location.hash.slice(1);
   if (VIEWS.includes(startView)) setView(startView);
@@ -1401,7 +1514,10 @@
         const line = $('#syncLine'); if (line) line.textContent = syncLabel();
         const b = $('#accountBtn'); if (b) b.classList.toggle('warn', !!(s.user && s.pending));
       },
-    }).then(() => { renderAccountButton(); checkJoinLink(); }).catch(e => console.warn('Cloud init:', e));
+    }).then(() => {
+      renderAccountButton(); checkJoinLink();
+      syncPush('INIT').then(() => { if (state.view === 'more') renderPush(); });
+    }).catch(e => console.warn('Cloud init:', e));
   }
   tickCountdown(); setInterval(() => {
     tickCountdown();
