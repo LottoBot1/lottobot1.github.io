@@ -15,6 +15,7 @@ declare
   t   timestamptz := now();
   res jsonb := '{}'::jsonb;
   r   record;
+  s   text;
 begin
   execute $ddl$
 -- Typer49 – Etap 4, krok 3, część B: automatyczne powiadomienia po losowaniu.
@@ -242,7 +243,8 @@ select cron.schedule('typer-push-runs-cleanup', '27 3 * * 1',
   res := res || jsonb_build_object('ok_uruchomiono', public.push_draw_check() = 'uruchomiono');
   res := res || jsonb_build_object('ok_drugi_raz_nie', public.push_draw_check() = 'juz_uruchomione');
   update public.push_runs set error = 'test', finished_at = now() where ref = 'lotto:900002';
-  res := res || jsonb_build_object('ok_ponowna_proba_po_bledzie', public.push_draw_check() = 'uruchomiono'
+  s := public.push_draw_check();   -- osobno: w jednym wyrażeniu baza mogłaby odczytać dziennik przed próbą
+  res := res || jsonb_build_object('ok_ponowna_proba_po_bledzie', s = 'uruchomiono'
     and (select attempts = 2 and error is null from public.push_runs where ref = 'lotto:900002'));
   update public.push_runs set error = 'test', attempts = 3 where ref = 'lotto:900002';
   res := res || jsonb_build_object('ok_najwyzej_3_proby', public.push_draw_check() = 'juz_uruchomione');
