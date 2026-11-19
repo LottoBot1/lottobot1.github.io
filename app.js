@@ -402,7 +402,7 @@
       const g = unmovedGuest().length;
       $('#homeBets').innerHTML = `
         <div class="card-head"><h2>Twoje zakłady</h2></div>
-        <p class="hint">Zakłady zapisujesz na darmowym koncie – wtedy aplikacja sama sprawdza je po losowaniu i widzisz je na każdym urządzeniu.${g ? ` Na tym urządzeniu masz ${g} ${plural(g, 'zakład', 'zakłady', 'zakładów')} zapisanych wcześniej bez konta – zobaczysz je w zakładce Zakłady.` : ''}</p>
+        <p class="hint">Zakłady zapisujesz na darmowym koncie – wtedy aplikacja sama sprawdza je po losowaniu i widzisz je na każdym urządzeniu.${g ? ` Na tym urządzeniu masz ${g} ${plural(g, 'zakład zapisany', 'zakłady zapisane', 'zakładów zapisanych')} wcześniej bez konta – zobaczysz je w zakładce Zakłady.` : ''}</p>
         <div class="row-gap"><button class="btn sm" data-goto="bets">Dowiedz się więcej</button></div>`;
     } else renderHomeBets(latest);
     $('#recentGameLabel').textContent = GAMES[state.game];
@@ -689,13 +689,13 @@
   // Zakłady gościa (zapisane na urządzeniu bez konta) – karta nad listą.
   function guestBetsCard() {
     const g = unmovedGuest(); if (!g.length) return '';
-    const n = g.length, nz = `${n} ${plural(n, 'zakład', 'zakłady', 'zakładów')}`;
+    const n = g.length, nzz = `${n} ${plural(n, 'zakład zapisany', 'zakłady zapisane', 'zakładów zapisanych')}`;
     const risk = 'Zakłady zapisane tylko w przeglądarce mogą zniknąć, np. gdy przeglądarka wyczyści dane strony (zdarza się to zwłaszcza w Safari na iPhonie).';
     if (hasAccount()) {
       if (rk.guestLater) return '';
       return `<div class="card guest-bets">
           <h2>📱 Zakłady z tego urządzenia</h2>
-          <p>Na tym urządzeniu masz <b>${nz}</b> zapisanych bez konta. Przenieś je na swoje konto, żeby były bezpieczne i widoczne na innych urządzeniach.</p>
+          <p>Na tym urządzeniu masz <b>${nzz}</b> bez konta. Przenieś je na swoje konto, żeby były bezpieczne i widoczne na innych urządzeniach.</p>
           <p class="hint">${risk} Przeniesione zakłady nie liczą się do rankingu (ranking obejmuje tylko zakłady zapisane na koncie przed losowaniem).</p>
           <div class="row-gap">
             <button class="btn primary" id="guestMove">Przenieś na moje konto</button>
@@ -708,7 +708,7 @@
     const SHOW = 60;
     return `<div class="card guest-bets">
         <h2>📱 Zakłady z tego urządzenia</h2>
-        <p>Masz tu <b>${nz}</b> zapisanych wcześniej bez konta. Możesz je przeglądać poniżej. Po założeniu darmowego konta lub zalogowaniu zaproponujemy przeniesienie ich na konto. Możesz też pobrać kopię w pliku.</p>
+        <p>Masz tu <b>${nzz}</b> wcześniej bez konta. Możesz je przeglądać poniżej. Po założeniu darmowego konta lub zalogowaniu zaproponujemy przeniesienie ich na konto. Możesz też pobrać kopię w pliku.</p>
         <p class="hint">${risk}</p>
         <div class="row-gap"><button class="btn" id="guestExport">⬇️ Pobierz kopię</button></div>
       </div>
@@ -1051,7 +1051,7 @@
     const pend = TD.pendingSets(store.get(PENDING_SAVE, null), now().getTime());
     const join = TD.pendingJoin(store.get(PENDING_JOIN, null), now().getTime());
     const waiting = [
-      pend ? `💾 ${pend.length === 1 ? 'Twój zestaw czeka' : `Twoje zestawy (${pend.length}) czekają`} – ${pend.length === 1 ? 'zapisze' : 'zapiszą'} się same po zalogowaniu (najwyżej 7 dni).` : '',
+      pend ? `💾 ${pend.length === 1 ? 'Twój zestaw czeka' : `Twoje zestawy (${pend.length}) czekają`} – ${pend.length === 1 ? 'zapisze się sam' : 'zapiszą się same'} po zalogowaniu (najwyżej 7 dni).` : '',
       join ? '👥 Po zalogowaniu automatycznie dołączysz do grupy z zaproszenia.' : '',
       previewGuest() ? '👁 Podgląd jako gość – logowanie jest tu wyłączone.' : '',
     ].filter(Boolean);
@@ -1075,7 +1075,7 @@
       <p id="acctMsg" class="acct-msg"></p>
       ${reg ? '' : `<button class="link-btn" id="resetLink">${reset ? '← Wróć do logowania' : 'Nie pamiętasz hasła?'}</button>`}
       ${iosNote}
-      ${unmovedGuest().length ? `<p class="hint">Masz ${unmovedGuest().length} ${plural(unmovedGuest().length, 'zakład', 'zakłady', 'zakładów')} zapisanych na tym urządzeniu bez konta – po zalogowaniu zaproponujemy przeniesienie ich na konto.</p>` : ''}`;
+      ${unmovedGuest().length ? `<p class="hint">Masz ${unmovedGuest().length} ${plural(unmovedGuest().length, 'zakład zapisany', 'zakłady zapisane', 'zakładów zapisanych')} na tym urządzeniu bez konta – po zalogowaniu zaproponujemy przeniesienie ich na konto.</p>` : ''}`;
   }
 
   async function withBusy(btn, fn) {
@@ -1571,7 +1571,7 @@
       if (e.target.id === 'guestLater') { rk.guestLater = true; renderBets(); }
       if (e.target.id === 'guestDelete') {
         const n = unmovedGuest().length;
-        if (n && confirm(`Usunąć ${n} ${plural(n, 'zakład', 'zakłady', 'zakładów')} zapisanych na tym urządzeniu bez konta? Tego nie da się cofnąć. Jeśli chcesz je zachować, najpierw pobierz kopię albo przenieś je na konto.`)) {
+        if (n && confirm(`Usunąć ${n} ${plural(n, 'zakład zapisany', 'zakłady zapisane', 'zakładów zapisanych')} na tym urządzeniu bez konta? Tego nie da się cofnąć. Jeśli chcesz je zachować, najpierw pobierz kopię albo przenieś je na konto.`)) {
           guestBets = guestBets.filter(b => b.moved); saveGuest(); renderBets(); toast('Usunięto zakłady z tego urządzenia');
         }
       }
