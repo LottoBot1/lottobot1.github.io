@@ -631,7 +631,7 @@
         <button class="btn" id="syncNow">🔄 Synchronizuj teraz</button>
 
         <h3 style="margin-top:20px">Pseudonim</h3>
-        <p class="hint">Będzie widoczny w rankingach (wkrótce). Nie podawaj imienia i nazwiska.</p>
+        <p class="hint">Widoczny w rankingu graczy i w Twoich grupach. Nie podawaj imienia i nazwiska.</p>
         <form id="nickForm" class="row-gap">
           <input class="input" name="nick" maxlength="20" placeholder="np. SzczęśliwaSiódemka" value="${esc(nick)}">
           <button class="btn primary">Zapisz</button>
@@ -802,7 +802,7 @@
         <tr><th></th><th>Darmowy</th><th>Premium</th></tr>
         ${PREMIUM_FEATURES.map(([f, a, b]) => `<tr><td>${f}</td><td>${a}</td><td><b>${b}</b></td></tr>`).join('')}
       </table>
-      ${prem ? '' : '<button class="btn primary big" disabled>Kup Premium – wkrótce w Google Play</button>'}
+      ${prem ? '' : '<button class="btn primary big" disabled>Kup Premium – wkrótce</button>'}
       <p class="hint">Premium nie zwiększa szans wygranej – daje wygodniejsze narzędzia i wspiera rozwój aplikacji.</p>`;
   }
   function pendingCount() { return state.bets.filter(b => evalBet(b).status !== 'done').length; }

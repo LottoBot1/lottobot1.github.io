@@ -2,7 +2,7 @@
 
 Aplikacja webowa (PWA) do analizy gier liczbowych 6/49 (Lotto i Lotto Plus). Działa w przeglądarce na komputerze i telefonie, można ją też zainstalować jak zwykłą aplikację. Adres: <https://lottobot1.github.io/>
 
-## Konta użytkowników (Etap 1)
+## Konta użytkowników
 
 - Logowanie e-mailem i hasłem, a zakłady synchronizują się w chmurze między urządzeniami. Aplikacja działa też offline, a zmiany wysyłają się po odzyskaniu internetu.
 - Backend: Supabase (projekt `typer49`, Europa). Schemat bazy i reguły bezpieczeństwa są w [`supabase/schema.sql`](supabase/schema.sql), a każdy użytkownik widzi tylko swoje dane.
@@ -10,7 +10,7 @@ Aplikacja webowa (PWA) do analizy gier liczbowych 6/49 (Lotto i Lotto Plus). Dzi
 - E-maile (potwierdzenie konta, reset hasła) wychodzą z typer49.kontakt@gmail.com przez SMTP Gmaila, uwierzytelnione hasłem aplikacji.
 - Automat GitHub raz dziennie „budzi” bazę, bo darmowy Supabase usypia projekt po 7 dniach bez ruchu.
 
-## Ranking, grupy i Premium (Etap 2)
+## Ranking, grupy i Premium
 
 - Schemat jest w [`supabase/stage2.sql`](supabase/stage2.sql).
 - **Losowania w bazie:** pg_cron i pg_net co 30 min pobierają `data/*.json` z GitHub Pages do tabeli `draws`.
@@ -18,6 +18,11 @@ Aplikacja webowa (PWA) do analizy gier liczbowych 6/49 (Lotto i Lotto Plus). Dzi
 - **Ochrona przed oszustwami:** kolumnę `bets.ranked` ustawia wyzwalacz. Zakład liczy się tylko wtedy, gdy trafił do chmury w ciągu 15 min od utworzenia i nie był później zmieniany.
 - **Grupy:** zakładanie (max 10 własnych), dołączanie kodem lub linkiem `#join=KOD` (max 50 osób), ranking grupy.
 - **Premium:** w `profiles.plan` i `premium_until` zmiany robi tylko serwer, a użytkownik nie może sam ustawić planu. W `config.js` opcja `betaAllPremium: true` daje w okresie testów wszystko za darmo.
+
+## Czas polski i zegar urządzenia
+
+- Zakład należy do pierwszego losowania, które faktycznie odbyło się po jego zapisaniu (godz. 22:00 czasu polskiego). Ta sama zasada działa w aplikacji ([`time.js`](time.js)) i w bazie (`bet_results`), niezależnie od strefy czasowej urządzenia. Godziny w aplikacji mają dopisek „(czas polski)”.
+- Aplikacja sprawdza prawdziwy czas na serwerze i zapisuje zakłady z prawdziwą godziną, nawet gdy zegar telefonu jest przestawiony. Gdy różnica przekracza 15 min, pokazuje ostrzeżenie ze wskazówką, jak włączyć automatyczny czas (Android, iPhone). Bez internetu używa ostatniego pomiaru najwyżej przez 24 h.
 
 ## Co poprawiono względem wersji w Pythonie/Streamlit
 
@@ -37,18 +42,17 @@ Aplikacja webowa (PWA) do analizy gier liczbowych 6/49 (Lotto i Lotto Plus). Dzi
 - **Zakłady:** status oczekujący lub rozliczony, podświetlone trafienia, przełącznik „Zagrany”, „Ponów” na kolejne losowanie, filtry.
 - **Więcej:** sprawdzanie dowolnego kuponu (także na całej historii), eksport i import zakładów (w tym stary `user_bets.csv`), ręczne dodanie wyniku, instalacja na telefonie.
 
-## Uruchomienie w internecie (jednorazowo, ok. 10 minut)
+## Publikacja i automat
 
-1. Załóż darmowe konto na <https://github.com> (jeśli nie masz).
-2. Kliknij **New repository** i nazwij je np. `lotto`. Ustaw **Public** (darmowe GitHub Pages wymaga publicznego repozytorium). Repozytorium zawiera tylko kod i wyniki losowań, a Twoje zakłady zostają w przeglądarce.
-3. Na stronie nowego repozytorium wybierz **„uploading an existing file”** i przeciągnij **całą zawartość** folderu `Analizator LOTTO` (razem z folderami `.github`, `data`, `icons`, `scripts`). Kliknij **Commit changes**.
-   > Windows ukrywa folder `.github`. Jeśli go nie widać, przeciągnij cały folder albo w Eksploratorze włącz *Widok → Elementy ukryte*.
-   > Jeśli przeglądarka nie wgra folderu `.github`, w repozytorium wybierz **Add file → Create new file**, wpisz nazwę `.github/workflows/update-data.yml` i wklej zawartość tego pliku.
-4. Wejdź w **Settings → Pages**, w polu *Source* wybierz **GitHub Actions**.
-5. Wejdź w **Actions**, zaakceptuj uruchamianie workflowów, wybierz *Aktualizacja wyników i publikacja* i kliknij **Run workflow**.
-6. Po 1–2 minutach aplikacja będzie dostępna pod adresem `https://TWOJA-NAZWA.github.io/lotto/`.
+Strona jest publikowana na GitHub Pages z tego repozytorium (Settings → Pages → Source: **GitHub Actions**). Wszystko robi automat [`.github/workflows/update-data.yml`](.github/workflows/update-data.yml):
 
-Od tej chwili automat sam pobiera wyniki po każdym losowaniu i publikuje stronę.
+- **Testy** – przy każdej zmianie, na każdej gałęzi, w 6 strefach czasowych.
+- **Wyniki** – po każdym losowaniu (wt/czw/sob) i raz dziennie pobiera nowe wyniki do `data/` i zapisuje je w repozytorium.
+- **Publikacja** – tylko z gałęzi `main`. Gdy testy przejdą, publikuje bieżący kod i zapisuje go jako gałąź `last-good`. Gdy testy nie przejdą, publikuje ostatni dobry kod (`last-good`) ze świeżymi wynikami, a przebieg kończy się błędem, więc przychodzi e-mail z GitHuba.
+
+Żeby opublikować zmianę, wystarczy commit i push na `main` (przed pushem `git pull`, bo automat sam dopisuje wyniki). Zmianę bez publikacji, np. tylko do uruchomienia testów, wysyła się na osobną gałąź.
+
+Zmiany w bazie (pliki w [`supabase/`](supabase/)) wkleja się ręcznie w Supabase → SQL Editor: najpierw `schema.sql`, potem `stage2.sql`. Oba pliki można bezpiecznie uruchomić ponownie.
 
 ## Instalacja na telefonie
 
@@ -58,7 +62,9 @@ Otwórz adres strony na telefonie, a następnie:
 
 ## Twoje zakłady na kilku urządzeniach
 
-Zakłady zapisują się w pamięci przeglądarki na danym urządzeniu. Żeby je przenieść, użyj *Więcej → Eksportuj* (plik `.json`), a na drugim urządzeniu *Więcej → Importuj*. Import łączy dane bez duplikatów. Tak samo wczytasz stary plik `user_bets.csv`.
+Po zalogowaniu na to samo konto zakłady są takie same na telefonie i komputerze, bo synchronizują się w chmurze. Bez konta zakłady zostają w pamięci przeglądarki na danym urządzeniu.
+
+Kopię zapasową zrobisz przez *Więcej → Eksportuj* (plik `.json`), a wczytasz przez *Więcej → Importuj*. Import łączy dane bez duplikatów. Tak samo wczytasz stary plik `user_bets.csv`. Zakłady z importu nie liczą się do rankingu.
 
 ## Lokalny podgląd (opcjonalnie)
 
@@ -70,15 +76,23 @@ python -m http.server 8000
 
 i wejście na <http://localhost:8000>. Ręczna aktualizacja danych: `python scripts/update_data.py`.
 
+Testy (wymagają Node.js): `node --test tests/*.test.js`.
+
 ## Struktura
 
 ```
-index.html, app.css, app.js   – aplikacja
+index.html, app.css, app.js   – aplikacja (ekrany, generator, statystyki, zakłady)
+time.js                       – czas polski, rozliczanie zakładów, zegar urządzenia
+cloud.js, config.js           – konto i synchronizacja zakładów (Supabase, publiczny klucz)
 sw.js, manifest.webmanifest   – tryb offline i instalacja (PWA)
+icons/                        – ikony aplikacji
+privacy.html                  – polityka prywatności (RODO)
 data/lotto.json               – wyniki Lotto od 1957 r.
 data/lottoplus.json           – wyniki Lotto Plus od 2012 r.
 scripts/update_data.py        – pobieranie wyników (bez dodatkowych bibliotek)
-.github/workflows/            – harmonogram automatu i publikacja na GitHub Pages
+supabase/                     – schemat bazy, ranking, grupy (SQL)
+tests/                        – testy automatyczne (czas polski, zegar urządzenia)
+.github/workflows/            – testy, harmonogram automatu i publikacja na GitHub Pages
 ```
 
 > Losowania Lotto są całkowicie losowe. Żadna statystyka ani model nie zwiększa szansy wygranej. Graj odpowiedzialnie, 18+.

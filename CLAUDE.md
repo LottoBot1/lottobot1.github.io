@@ -83,15 +83,12 @@ GitHub Action cron (after Tue/Thu/Sat draws + daily) → `scripts/update_data.py
 - Instalacja na telefonie i działanie bez internetu.
 - Konta: rejestracja z potwierdzeniem e-mailem, logowanie, reset hasła, wylogowanie (także na telefonie), usuwanie konta.
 - Synchronizacja zakładów między urządzeniami.
-- Ranking globalny i grupy znajomych z zaproszeniami. Logika bazy jest przetestowana na fikcyjnych kontach, ale ranking nie był jeszcze sprawdzony na prawdziwych rozliczonych zakładach po losowaniu.
+- Ranking globalny i grupy znajomych z zaproszeniami. Logika bazy jest przetestowana na fikcyjnych kontach, a ranking sprawdził właściciel na prawdziwych zakładach po losowaniu (wtorek 17.11.2026). Działa poprawnie.
 
 ### Niedokończone albo prowizoryczne
 - **Premium nie ma płatności.** Wszystko jest darmowe dzięki przełącznikowi `betaAllPremium`. Przycisk „Kup Premium” jest nieaktywny.
 - **Limity wersji darmowej działają tylko w aplikacji, nie na serwerze.** Gdy ruszą płatności, limity trzeba będzie też egzekwować w bazie, bo inaczej da się je obejść.
 - **Funkcje opisane jako „wkrótce” nie istnieją:** powiadomienia po losowaniu, systemy skrócone, bilans wydatków. Reklam też jeszcze nie ma.
-- **Nieaktualne teksty:**
-  - przy pseudonimie na ekranie konta jest napis „rankingi (wkrótce)”, a rankingi już działają;
-  - `README.md` zawiera starą instrukcję wgrywania z czasów „Lotto Analizator”: repozytorium `lotto` i adres `TWOJA-NAZWA.github.io/lotto/`.
 - **Brak regulaminu.** Jest tylko polityka prywatności, a regulamin będzie potrzebny przed płatną subskrypcją i Google Play.
 - **Tymczasowa infrastruktura:**
   - adres `lottobot1.github.io` zamiast własnej domeny;
@@ -139,8 +136,8 @@ GitHub Action cron (after Tue/Thu/Sat draws + daily) → `scripts/update_data.py
 Projekt zaczął się jako hobby i nauka, teraz ma stać się źródłem zarobku. Celem jest jak najwięcej użytkowników. Właściciel ma ok. 10 h tygodniowo i jest gotów na rozsądne wydatki (domena, konto Google Play, porada prawna).
 
 ### Kolejność prac (nie przeskakuj etapów bez zgody właściciela)
-1. Poprawka czasu: rozliczanie zakładów zawsze według czasu polskiego (Europe/Warsaw), niezależnie od strefy i zegara urządzenia, zgodnie z logiką bazy (`bet_results`). Ostrzeżenie dla użytkownika, gdy zegar urządzenia jest przestawiony o więcej niż 15 min. Do tej logiki powstaje automatyczny test.
-2. Szybkie poprawki: napis „rankingi (wkrótce)”, przestarzały README.md.
+1. ✅ (zrobione 18–19.11.2026) Poprawka czasu: rozliczanie zakładów zawsze według czasu polskiego (Europe/Warsaw), niezależnie od strefy i zegara urządzenia, zgodnie z logiką bazy (`bet_results`). Ostrzeżenie dla użytkownika, gdy zegar urządzenia jest przestawiony o więcej niż 15 min. Do tej logiki powstaje automatyczny test.
+2. ✅ (zrobione 19.11.2026) Szybkie poprawki: napis „rankingi (wkrótce)”, przestarzały README.md, przycisk „Kup Premium – wkrótce” bez wzmianki o Google Play.
 3. Ostrzeżenia o awariach: właściciel dostaje e-mail, gdy przez ponad 3 dni nie przyjdą nowe wyniki, gdy automat GitHuba się wysypie lub gdy przestaną wychodzić e-maile.
 4. Nowe funkcje, każda osobno: powiadomienia po losowaniu, bilans wydatków, systemy skrócone.
 5. Wydajność przed promocją: ranking, zapis zakładów i synchronizacja przy tysiącach użytkowników.
