@@ -86,8 +86,9 @@ Deno.serve(async (req) => {
         url: "./#bets",
         tag: "typer49-test",
       }));
-      console.log("test", cmd.user_id, JSON.stringify(r));
-      return json(r);
+      const region = Deno.env.get("SB_REGION") ?? "?";   // powinno być eu-central-1 (privacy.html, pkt 5)
+      console.log("test", cmd.user_id, region, JSON.stringify(r));
+      return json({ ...r, region });
     }
     return json({ error: "Nieznane polecenie" }, 400);
   } catch (e) {
