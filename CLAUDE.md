@@ -99,7 +99,7 @@ GitHub Action cron (after Tue/Thu/Sat draws + daily) → `scripts/update_data.py
 
 ## Problemy i ryzyka w kodzie
 
-- **Przestawiony zegar urządzenia** – obsłużony (krok 2 Etapu 1). Zostaje jedno ryzyko: zakład zapisany bez internetu przez kogoś, kto nigdy nie był online albo jest offline od ponad 24 h, ma godzinę z zegara telefonu. Taki zakład i tak nie liczy się do rankingu, ale może trafić do złego losowania.
+- **Przestawiony zegar urządzenia** – obsłużony (Etap 1, krok 2). Zostaje jedno ryzyko: zakład zapisany bez internetu przez kogoś, kto nigdy nie był online albo jest offline od ponad 24 h, ma godzinę z zegara telefonu. Taki zakład i tak nie liczy się do rankingu, ale może trafić do złego losowania.
 - **Terminarz losowań (wt/czw/sob 22:00) jest wpisany na stałe.** Rozliczanie opiera się na losowaniach, które faktycznie są w danych, więc odwołane lub przesunięte losowanie nie psuje przypisania. Terminarz decyduje tylko o odliczaniu i o statusie „oczekuje”, a przy przesuniętym losowaniu przez chwilę może pokazać zły termin. Gdyby losowanie odbyło się o innej godzinie niż 22:00, przypisanie zakładów zapisanych w tym czasie mogłoby się różnić od rzeczywistego.
 - **Jedno źródło wyników.** Jeśli mbnet.com.pl zmieni format, adres albo zablokuje automat, wyniki przestaną się aktualizować. Skrypt nie usunie danych, ale nowych nie będzie. Źródło działa też tylko przez nieszyfrowane `http`.
 - **Wpisane na stałe adresy.**
@@ -128,7 +128,6 @@ GitHub Action cron (after Tue/Thu/Sat draws + daily) → `scripts/update_data.py
 - Aplikacja musi działać na Androidzie (Chrome) i iPhonie (Safari, także zainstalowana na ekranie początkowym). Każdą zmianę sprawdzaj pod kątem obu systemów, a różnice opisuj właścicielowi.
 - Never claim the app improves the chance of winning (store policy and consumer law); keep the 18+/responsible-gaming notes.
 - E-mails go through custom SMTP (Gmail app password, entered by the owner). Security-related Supabase settings (e.g. "Confirm email") are the owner's decision – don't change them.
-- Planned next: Stage 3 – Android app via TWA in Google Play, Play Billing for Premium, push notifications after draws.
 
 ## Cele i plan pracy
 
@@ -136,12 +135,14 @@ GitHub Action cron (after Tue/Thu/Sat draws + daily) → `scripts/update_data.py
 Projekt zaczął się jako hobby i nauka, teraz ma stać się źródłem zarobku. Celem jest jak najwięcej użytkowników. Właściciel ma ok. 10 h tygodniowo i jest gotów na rozsądne wydatki (domena, konto Google Play, porada prawna).
 
 ### Kolejność prac (nie przeskakuj etapów bez zgody właściciela)
-1. ✅ (zrobione 18–19.11.2026) Poprawka czasu: rozliczanie zakładów zawsze według czasu polskiego (Europe/Warsaw), niezależnie od strefy i zegara urządzenia, zgodnie z logiką bazy (`bet_results`). Ostrzeżenie dla użytkownika, gdy zegar urządzenia jest przestawiony o więcej niż 15 min. Do tej logiki powstaje automatyczny test.
-2. ✅ (zrobione 19.11.2026) Szybkie poprawki: napis „rankingi (wkrótce)”, przestarzały README.md, przycisk „Kup Premium – wkrótce” bez wzmianki o Google Play.
-3. Ostrzeżenia o awariach: właściciel dostaje e-mail, gdy przez ponad 3 dni nie przyjdą nowe wyniki, gdy automat GitHuba się wysypie lub gdy przestaną wychodzić e-maile.
-4. Nowe funkcje, każda osobno: powiadomienia po losowaniu, bilans wydatków, systemy skrócone.
-5. Wydajność przed promocją: ranking, zapis zakładów i synchronizacja przy tysiącach użytkowników.
-6. Google Play i płatności Premium – dopiero gdy właściciel potwierdzi, że kwestie prawne (znak „Lotto”, reklama gier, licencja na dane) są zamknięte w osobnym projekcie.
+Punkty poniżej to **Etap 1–6**. Tylko tak nazywamy etapy w rozmowach, commitach i dokumentach. Mniejsze części etapu to kroki (np. „Etap 1, krok 2”). Nazwa pliku `supabase/stage2.sql` pochodzi z wcześniejszego podziału prac i nie oznacza Etapu 2.
+
+- **Etap 1** ✅ (zrobione 18–19.11.2026) Poprawka czasu: rozliczanie zakładów zawsze według czasu polskiego (Europe/Warsaw), niezależnie od strefy i zegara urządzenia, zgodnie z logiką bazy (`bet_results`). Ostrzeżenie dla użytkownika, gdy zegar urządzenia jest przestawiony o więcej niż 15 min. Do tej logiki powstaje automatyczny test.
+- **Etap 2** ✅ (zrobione 19.11.2026) Szybkie poprawki: napis „rankingi (wkrótce)”, przestarzały README.md, ekran Premium bez wzmianek o Google Play (aplikacja działa też na iPhonie).
+- **Etap 3** Ostrzeżenia o awariach: właściciel dostaje e-mail, gdy przez ponad 3 dni nie przyjdą nowe wyniki, gdy automat GitHuba się wysypie lub gdy przestaną wychodzić e-maile.
+- **Etap 4** Nowe funkcje, każda osobno: powiadomienia po losowaniu, bilans wydatków, systemy skrócone.
+- **Etap 5** Wydajność przed promocją: ranking, zapis zakładów i synchronizacja przy tysiącach użytkowników.
+- **Etap 6** Google Play (aplikacja na Androida przez TWA) i płatności Premium (Play Billing) – dopiero gdy właściciel potwierdzi, że kwestie prawne (znak „Lotto”, reklama gier, licencja na dane) są zamknięte w osobnym projekcie.
 
 ### Zasady współpracy z właścicielem
 - Przed każdą zmianą zrób commit, żeby można było wrócić.
