@@ -1557,11 +1557,19 @@
     renderView(); window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
     if (location.hash !== '#' + v) history.replaceState(null, '', '#' + v);
   }
+  // Numer wersji na dole Więcej – z działającego service workera (jedno źródło: VERSION w sw.js), patrz wersja.js.
+  async function renderVersion() {
+    const el = $('#appVersion'); if (!el || !window.TyperWersja) return;
+    const v = await window.TyperWersja.loaded().catch(() => null);
+    el.textContent = v ? v.text : '';
+  }
+  if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('controllerchange', () => { if (state.view === 'more') renderVersion(); });
+
   function renderView() {
     if (state.view === 'account') { renderAccount(); return; }
     if (state.view === 'rank') { renderRank(); return; }
     if (state.view === 'premium') { renderPremium(); return; }
-    if (state.view === 'more') { renderPush(); renderMoreAccess(); }   // nie zależą od danych losowań
+    if (state.view === 'more') { renderPush(); renderMoreAccess(); renderVersion(); }   // nie zależą od danych losowań
     if (!state.data.lotto) return;
     ({ home: renderHome, gen: renderGen, stats: renderStats, bets: renderBets, more: () => {} })[state.view]();
   }

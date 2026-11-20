@@ -372,3 +372,4 @@ a { color: var(--accent2); }
 .guest-bets .row-gap { flex-wrap: wrap; margin-top: 8px; }
 .guest-bets .link-btn { margin-top: 10px; font-size: .85rem; opacity: .8; }
 .bet.readonly { opacity: .92; }
+.app-version { text-align: center; margin: 4px 0 16px; }
