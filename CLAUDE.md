@@ -242,5 +242,6 @@ Punkty poniżej to **Etap 1–6**. Tylko tak nazywamy etapy w rozmowach, commita
 - Podział uprawnień:
   - Samodzielnie (bez pytania): odczyt plików; `git status/log/diff/branch/fetch/show`; próbne scalenie bez zapisu (`git merge-tree`); testy JS (`node --test tests/*.test.js`); lokalny serwer podglądu; w SQL Editor zapytania tylko do odczytu i testy SQL, które na końcu cofają wszystkie zmiany (`raise exception 'WYNIK_TESTU …'`); edycja plików aplikacji, ale tylko na gałęzi roboczej (np. przez `git worktree`), nigdy bezpośrednio na main; commit i push na gałęzie robocze.
   - Za zgodą właściciela (po „tak” Claude wykonuje sam): trwałe zmiany w bazie (migracje, RLS, zapis na prawdziwych danych), commit i push na main, scalanie do main, publikacja strony, zmiana gałęzi.
-  - Zabronione (robi tylko właściciel): usuwanie plików i gałęzi, `git reset`, `git clean`, force push.
+  - Zabronione (robi tylko właściciel): usuwanie plików, lokalne usuwanie gałęzi (`git branch -d/-D`), `git reset`, `git clean`, force push.
+  - Usuwanie gałęzi na GitHubie (`git push origin --delete …`): tylko gałęzie w pełni scalone z main (sprawdzić `git branch -r --merged origin/main`) i tylko po zgodzie właściciela. Nigdy `main` ani `last-good` (z `last-good` automat publikuje stronę, gdy testy padną) – w ustawieniach zablokowane.
   - Techniczne zabezpieczenie: `.claude/settings.json` (`permissions`). Ustawienia nie odróżniają commitu na main od commitu na gałęzi roboczej ani nie widzą Supabase w przeglądarce – tam obowiązuje ta zasada. Każdy push na main pyta o zgodę.

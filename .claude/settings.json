@@ -18,16 +18,20 @@
       "Bash(git merge *)", "Bash(git pull*)", "Bash(gh workflow run*)",
       "PowerShell(git push)", "PowerShell(git push origin main*)", "PowerShell(git push*main*)", "PowerShell(git push origin HEAD*)",
       "PowerShell(git checkout*)", "PowerShell(git switch*)",
-      "PowerShell(git merge *)", "PowerShell(git pull*)", "PowerShell(gh workflow run*)"
+      "PowerShell(git merge *)", "PowerShell(git pull*)", "PowerShell(gh workflow run*)",
+      "Bash(git push*--delete*)", "Bash(git push * :*)",
+      "PowerShell(git push*--delete*)", "PowerShell(git push * :*)"
     ],
     "deny": [
       "Bash(git push*--force*)", "Bash(git push -f*)", "Bash(git push * -f*)",
       "Bash(git reset*)", "Bash(git clean*)",
-      "Bash(git branch -d*)", "Bash(git branch -D*)", "Bash(git push*--delete*)",
+      "Bash(git branch -d*)", "Bash(git branch -D*)",
+      "Bash(git push*--delete*main*)", "Bash(git push*--delete*last-good*)", "Bash(git push * :main*)", "Bash(git push * :last-good*)",
       "Bash(rm *)", "Bash(git rm *)",
       "PowerShell(git push*--force*)", "PowerShell(git push -f*)", "PowerShell(git push * -f*)",
       "PowerShell(git reset*)", "PowerShell(git clean*)",
-      "PowerShell(git branch -d*)", "PowerShell(git branch -D*)", "PowerShell(git push*--delete*)",
+      "PowerShell(git branch -d*)", "PowerShell(git branch -D*)",
+      "PowerShell(git push*--delete*main*)", "PowerShell(git push*--delete*last-good*)", "PowerShell(git push * :main*)", "PowerShell(git push * :last-good*)",
       "PowerShell(Remove-Item*)", "PowerShell(rm *)", "PowerShell(del *)", "PowerShell(git rm *)"
     ]
   }
