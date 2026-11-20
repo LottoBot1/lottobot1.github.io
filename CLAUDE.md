@@ -222,6 +222,7 @@ Punkty poniżej to **Etap 1–6**. Tylko tak nazywamy etapy w rozmowach, commita
   - (a) E-maile: przejście z Gmaila na usługę maili transakcyjnych z własną domeną (limit Gmaila ok. 500 dziennie, adres i treść przechodzą przez Google).
   - (b) Biblioteka logowania (`@supabase/supabase-js@2.45.4`) we własnym repozytorium zamiast z jsDelivr (mniej dostawców widzących adres IP, brak zależności od CDN).
   - (c) Usunięcie konta właściciela grupy: przekazanie grupy innemu członkowi zamiast usuwania jej dla wszystkich (dziś kaskada w bazie usuwa grupę).
+  - (d) Nowa wersja aplikacji: sprawdzić, czy użytkownik dowiaduje się o nowej wersji (np. komunikat „Nowa wersja – odśwież”), żeby nikt nie zostawał długo na starej (`sw.js` w pamięci podręcznej). Na razie tylko sprawdzenie, bez kodowania.
 - **Etap 6** Google Play (aplikacja na Androida przez TWA) i płatności Premium (Play Billing) – dopiero gdy właściciel potwierdzi, że kwestie prawne (znak „Lotto”, reklama gier, licencja na dane) są zamknięte w osobnym projekcie.
   - Rozważyć dwa poziomy Premium – decyzja razem z cenami. (Kod jest gotowy: poziomy i przypisanie funkcji są w `config.js` – `tiers`, `featureTiers`. Nowy poziom wymaga też nowej wartości `profiles.plan` w bazie.)
 
