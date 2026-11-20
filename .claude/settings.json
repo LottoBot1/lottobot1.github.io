@@ -1,20 +1,23 @@
 {
   "permissions": {
     "allow": [
-      "Read", "Grep", "Glob",
+      "Read", "Grep", "Glob", "Edit", "Write",
       "Bash(git status*)", "Bash(git log*)", "Bash(git diff*)", "Bash(git show*)",
       "Bash(git branch*)", "Bash(git fetch*)", "Bash(git merge-tree*)",
+      "Bash(git commit*)", "Bash(git push origin *)",
       "Bash(node --test*)", "Bash(python -m http.server*)",
       "PowerShell(git status*)", "PowerShell(git log*)", "PowerShell(git diff*)", "PowerShell(git show*)",
       "PowerShell(git branch*)", "PowerShell(git fetch*)", "PowerShell(git merge-tree*)",
+      "PowerShell(git commit*)", "PowerShell(git push origin *)",
       "PowerShell(node --test*)", "PowerShell(python -m http.server*)",
       "mcp__Claude_Browser__preview_start"
     ],
     "ask": [
-      "Edit", "Write",
-      "Bash(git commit*)", "Bash(git push*)", "Bash(git checkout*)", "Bash(git switch*)",
+      "Bash(git push)", "Bash(git push origin main*)", "Bash(git push*main*)", "Bash(git push origin HEAD*)",
+      "Bash(git checkout*)", "Bash(git switch*)",
       "Bash(git merge *)", "Bash(git pull*)", "Bash(gh workflow run*)",
-      "PowerShell(git commit*)", "PowerShell(git push*)", "PowerShell(git checkout*)", "PowerShell(git switch*)",
+      "PowerShell(git push)", "PowerShell(git push origin main*)", "PowerShell(git push*main*)", "PowerShell(git push origin HEAD*)",
+      "PowerShell(git checkout*)", "PowerShell(git switch*)",
       "PowerShell(git merge *)", "PowerShell(git pull*)", "PowerShell(gh workflow run*)"
     ],
     "deny": [
