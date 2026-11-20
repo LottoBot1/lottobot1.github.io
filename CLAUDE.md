@@ -192,7 +192,7 @@ Punkty poniżej to **Etap 1–6**. Tylko tak nazywamy etapy w rozmowach, commita
 - Jedna zmiana na raz. Po każdej napisz prostymi słowami po polsku, co zrobiłeś i jak to sprawdzić.
 - Zanim zmienisz logikę rozliczania zakładów, rankingu albo bazę danych, opisz plan i poczekaj na zgodę.
 - Gdy trzeba coś wykonać w Supabase (SQL Editor, ustawienia), podaj właścicielowi instrukcję krok po kroku: gdzie kliknąć, co wkleić i co powinien zobaczyć.
-- Claude Code może sam uruchamiać SQL w Supabase przez przeglądarkę, ale przed każdym kliknięciem Run pokazuje właścicielowi, co uruchomi, i czeka na jego zgodę. Najpierw zawsze test, potem właściwa zmiana.
+- Claude Code może sam uruchamiać w Supabase przez przeglądarkę tylko zapytania tylko do odczytu (SELECT). Wszystko, co zapisuje do bazy (także testy SQL), przygotowuje i pokazuje, a uruchamia właściciel. Najpierw zawsze test, potem właściwa zmiana.
 - Gdy czegoś nie da się zrobić bez decyzji właściciela, zapytaj, zamiast zgadywać.
 
 ### Styl pracy
@@ -200,3 +200,8 @@ Punkty poniżej to **Etap 1–6**. Tylko tak nazywamy etapy w rozmowach, commita
 - Diff pokazuj tylko na prośbę albo przy zmianach w bazie lub regułach dostępu.
 - Do sprawdzania danych używaj jednego zapytania SQL zamiast pobierania wszystkiego kluczem publicznym.
 - Po zakończeniu etapu zaktualizuj w CLAUDE.md krótki stan projektu.
+- Podział uprawnień:
+  - Samodzielnie (bez pytania): odczyt plików; `git status/log/diff/branch/fetch/show`; próbne scalenie bez zapisu (`git merge-tree`); testy JS (`node --test tests/*.test.js`); zapytania tylko do odczytu (SELECT, odczyt kluczem publicznym); lokalny serwer podglądu.
+  - Za zgodą właściciela: każdy commit i push, zmiana gałęzi, edycja plików aplikacji.
+  - Tylko właściciel uruchamia (Claude przygotowuje i pokazuje): wszystko, co zapisuje do bazy produkcyjnej (INSERT/UPDATE/DELETE, migracje, zmiany RLS, testy SQL w SQL Editor), scalanie do main, publikacja strony, usuwanie plików i gałęzi, `git reset`, force push.
+  - Techniczne zabezpieczenie: `.claude/settings.json` (`permissions`). Uprawnień do Supabase w przeglądarce ustawienia nie obejmują, tam obowiązuje ta zasada.
