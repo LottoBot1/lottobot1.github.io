@@ -194,3 +194,9 @@ Punkty poniżej to **Etap 1–6**. Tylko tak nazywamy etapy w rozmowach, commita
 - Gdy trzeba coś wykonać w Supabase (SQL Editor, ustawienia), podaj właścicielowi instrukcję krok po kroku: gdzie kliknąć, co wkleić i co powinien zobaczyć.
 - Claude Code może sam uruchamiać SQL w Supabase przez przeglądarkę, ale przed każdym kliknięciem Run pokazuje właścicielowi, co uruchomi, i czeka na jego zgodę. Najpierw zawsze test, potem właściwa zmiana.
 - Gdy czegoś nie da się zrobić bez decyzji właściciela, zapytaj, zamiast zgadywać.
+
+### Styl pracy
+- Raporty maks. ~10 linii: co zrobiono, wynik, jedno pytanie o decyzję.
+- Diff pokazuj tylko na prośbę albo przy zmianach w bazie lub regułach dostępu.
+- Do sprawdzania danych używaj jednego zapytania SQL zamiast pobierania wszystkiego kluczem publicznym.
+- Po zakończeniu etapu zaktualizuj w CLAUDE.md krótki stan projektu.
