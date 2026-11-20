@@ -21,7 +21,12 @@ on:
     - cron: "0 12 * * *"        # codziennie 12:00 UTC (zapas)
   push:
     branches: ["**"]
-  workflow_dispatch: {}          # przycisk "Run workflow" w zakładce Actions
+  workflow_dispatch:             # przycisk "Run workflow" w zakładce Actions
+    inputs:
+      symuluj_blad_publikacji:
+        description: "Test ponawiania: pierwsza próba publikacji celowo się nie uda"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -122,7 +127,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deploy1.outputs.page_url || steps.deploy2.outputs.page_url || steps.deploy3.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -154,11 +159,32 @@ jobs:
             git push -q -f origin "$GITHUB_SHA:refs/heads/last-good"
           fi
 
-      - uses: actions/configure-pages@v5
+      # Wersje akcji przypięte dokładnym numerem (oficjalne wydania z organizacji „actions”, sprawdzone 20.11.2026).
+      - uses: actions/configure-pages@v6.0.0
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5.0.0
         with:
           path: _site
 
-      - id: deployment
-        uses: actions/deploy-pages@v4
+      # Publikacja: do 3 prób z przerwami 1 i 2 min – usługa GitHuba bywa chwilowo niedostępna
+      # (19.11.2026: „Fetching artifact metadata failed”). Błąd przebiegu (i e-mail) dopiero po 3 nieudanych próbach.
+      # Test: Actions → Aktualizacja wyników → Run workflow z opcją „symuluj_blad_publikacji” –
+      # pierwsza próba szuka nieistniejącej paczki, druga powinna się udać.
+      - id: deploy1
+        continue-on-error: true
+        uses: actions/deploy-pages@v5.0.1
+        with:
+          artifact_name: ${{ inputs.symuluj_blad_publikacji && 'test-brak-paczki' || 'github-pages' }}
+      - name: Przerwa przed 2. próbą publikacji (60 s)
+        if: steps.deploy1.outcome == 'failure'
+        run: echo "::warning::1. próba publikacji nieudana – ponawiam za 60 s"; sleep 60
+      - id: deploy2
+        if: steps.deploy1.outcome == 'failure'
+        continue-on-error: true
+        uses: actions/deploy-pages@v5.0.1
+      - name: Przerwa przed 3. próbą publikacji (120 s)
+        if: steps.deploy1.outcome == 'failure' && steps.deploy2.outcome == 'failure'
+        run: echo "::warning::2. próba publikacji nieudana – ponawiam za 120 s"; sleep 120
+      - id: deploy3
+        if: steps.deploy1.outcome == 'failure' && steps.deploy2.outcome == 'failure'
+        uses: actions/deploy-pages@v5.0.1
