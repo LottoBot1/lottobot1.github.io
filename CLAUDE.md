@@ -47,7 +47,7 @@ There is no build step, bundler or linter – plain HTML/CSS/vanilla JS served a
 ## Architecture
 
 ### Front end (no framework)
-- Script order in `index.html` matters: `config.js` → Supabase UMD from jsDelivr (pinned `@supabase/supabase-js@2.45.4`) → `cloud.js` (`window.Cloud`) → `time.js` (`window.TyperTime`) → `bilans.js` (`window.TyperBilans`) → `systemy.js` (`window.TyperSystemy`) → `app.js`. The app must keep working when the CDN or Supabase is unavailable (`Cloud.enabled` false → local-only mode).
+- Script order in `index.html` matters: `config.js` → Supabase UMD from jsDelivr (pinned `@supabase/supabase-js@2.45.4`) → `cloud.js` (`window.Cloud`) → `time.js` (`window.TyperTime`) → `bilans.js` (`window.TyperBilans`) → `systemy.js` (`window.TyperSystemy`) → `push.js` (`window.TyperPush`) → `dostep.js` (`window.TyperDostep`) → `app.js`. When the CDN or Supabase is unavailable (`Cloud.enabled` false) results, statistics, generator and ticket check keep working; saving bets needs an account (Etap 4, krok 4). A logged-in device stays usable offline: `hasAccount()` = session OR remembered `typer.owner`, and `Cloud.push/remove` queue changes even without an active session.
 - `app.js` is one IIFE with a single `state` object. Each screen is `<section id="view-<name>">`; `setView()`/`renderView()` dispatch by name, routing is the URL hash (`VIEWS` list), and `#join=CODE` is a group-invite link handled by `checkJoinLink()`. Views `account`, `rank`, `premium` have no draw-data dependency; others return early until data is loaded.
 - Draws come from `data/lotto.json` / `data/lottoplus.json` (`draws: [[no, "YYYY-MM-DD", [6 nums]], …]`), merged with user-entered manual results from localStorage (`withManual`).
 - All time logic is in `time.js` and always uses Polish time (Europe/Warsaw via `Intl`, with an EU DST fallback), never the device time zone. Bet settlement (`evalBet` → `TyperTime.targetDraw`): a bet belongs to the **first draw actually present in the data whose 22:00 Warsaw time is strictly after the bet's creation**; only while that draw is not in the data does the Tue/Thu/Sat schedule decide (`pending` / `waiting`). This mirrors `bet_results()` in the database – change both together, and keep `tests/time.test.js` in sync. Every displayed clock time carries the suffix `(czas polski)` (`PL` constant).
@@ -55,7 +55,7 @@ There is no build step, bundler or linter – plain HTML/CSS/vanilla JS served a
 - Spending balance (`bilans.js`, free for everyone – responsible gaming): only bets with `played` count. Price (`CENY`) and the fixed 3-hit prize (`TROJKA`) are tables keyed by the **date of the draw the bet belongs to** (from `TT.targetDraw`), not the calendar day of the bet – the 2026 price change happened at 22:10 on 18.08 (first 5 zł draw 20.08). A new price = a new row in the table. Amounts are summed in grosze. `b.prize` (zł, optional) is the user's own amount and overrides the suggestion; suggestion only for exactly 3 Lotto hits with <3 in Plus, 4–6 and Plus wins need manual entry. `prize` syncs via `bets.prize` (`supabase/etap4_bilans.sql`); it does not affect `ranked`. Tests: `tests/bilans.test.js`.
 - Abbreviated systems (`systemy.js`, Premium): 7–15 numbers, guarantees `m z k` in `GUARANTEES` (3z3, 3z4, 4z4, 4z5, 5z5), max `MAX_BETS` = 300. Lazy greedy covering on bitmasks with a fixed number of seeded restarts (`RESTARTS`) + removal of redundant bets → deterministic result for the same input; the guarantee is verified on every k-subset before anything is shown. Runs in a Web Worker (`new Worker('systemy.js')`, sync fallback). Saved bets get `method: 'system'`. Above 100 zł (`SYS_CONFIRM_GR`) a confirm modal (`askConfirm`) shows the full amount. `?pomiar=systemy` opens a speed test card (computes all 45 configs, copy button). Limits 7–15 confirmed by the owner's Android test (max 0.5 s); iPhone test still pending. Tests: `tests/systemy.test.js`.
 - Access tiers: `config.js` `tiers` (ordered, lowest first) and `featureTiers` (feature → lowest tier). Code uses `hasFeature(name)` / `requireFeature(name, label)` and `userTier()`; `isPremium()` = any tier above free. Moving a feature to a higher tier = edit `featureTiers` only (a new tier also needs a new `profiles.plan` value in the DB). Owner preview: `?jako=darmowy` stores `typer.viewAs = 'free'` on that device only (behaves as free plan with `betaAllPremium` off, blue bar with „Wyłącz podgląd” → `?jako=normalnie`).
-- localStorage keys: `lotto2.*` (bets, filters, manual draws, game – legacy prefix kept on purpose so existing users keep data) and `typer.*` (auth session, sync queue, owner id).
+- localStorage keys: `lotto2.*` (bets, filters, manual draws, game – legacy prefix kept on purpose so existing users keep data) and `typer.*` (auth session, sync queue, owner id). `lotto2.bets` holds only the account's bets; bets saved on the device without an account live in `lotto2.bets.guest` and move to the account only via the „Przenieś na moje konto” button (new id `dev-…`, copy kept until the cloud confirms). `typer.pendingSave` / `typer.pendingJoin`: a guest's set or group invite waiting for login (max 7 days, `dostep.js`); a waiting set gets the time of the actual save, not of the click. `typer.viewAs`: `free` (`?jako=darmowy`) or `guest` (`?jako=gosc`).
 - `sw.js`: shell is network-first with cache fallback, `data/` network-first, the pinned Supabase CDN file cache-first. **Bump `VERSION` whenever shell files change.**
 
 ### Accounts and sync (`cloud.js`)
@@ -111,7 +111,7 @@ GitHub Action cron (Tue/Thu/Sat every 15 min 20:05–23:50 UTC, deploy only when
   - adres `lottobot1.github.io` zamiast własnej domeny;
   - e-maile z Gmaila (limit ok. 500 dziennie);
   - dane z mbnet.com.pl bez oficjalnej zgody i licencji.
-- **Automatyczne testy obejmują tylko logikę czasu, zegar urządzenia, bilans wydatków, systemy skrócone i progi alarmów Strażnika.** Reszta (synchronizacja, ranking w aplikacji, generator) jest sprawdzana ręcznie.
+- **Automatyczne testy obejmują tylko logikę czasu, zegar urządzenia, bilans wydatków, systemy skrócone, reguły dostępu bez konta (`tests/dostep.test.js`) i progi alarmów Strażnika.** Reszta (synchronizacja, ranking w aplikacji, generator) jest sprawdzana ręcznie.
 - **Korekta zegara bez internetu jest przybliżona.** Gdy ktoś przestawi zegar bez internetu, aplikacja do 24 h liczy według starego pomiaru. Po połączeniu z internetem od razu mierzy na nowo.
 
 ## Problemy i ryzyka w kodzie
@@ -160,7 +160,7 @@ Punkty poniżej to **Etap 1–6**. Tylko tak nazywamy etapy w rozmowach, commita
 - **Etap 1** ✅ (zrobione 18–19.11.2026) Poprawka czasu: rozliczanie zakładów zawsze według czasu polskiego (Europe/Warsaw), niezależnie od strefy i zegara urządzenia, zgodnie z logiką bazy (`bet_results`). Ostrzeżenie dla użytkownika, gdy zegar urządzenia jest przestawiony o więcej niż 15 min. Do tej logiki powstaje automatyczny test.
 - **Etap 2** ✅ (zrobione 19.11.2026) Szybkie poprawki: napis „rankingi (wkrótce)”, przestarzały README.md, ekran Premium bez wzmianek o Google Play (aplikacja działa też na iPhonie).
 - **Etap 3** ✅ (19.11.2026 – skonfigurowany, próbny alarm dotarł e-mailem) Ostrzeżenia o awariach: właściciel dostaje e-mail, gdy przez ponad 3,5 dnia nie przyjdą nowe wyniki, gdy automat GitHuba się wysypie lub stanie, gdy baza przestanie pobierać wyniki lub gdy przestanie działać hasło do Gmaila. Rozwiązanie: Strażnik + healthchecks.io (szczegóły w „Monitoring”).
-- **Etap 4** Nowe funkcje, każda osobno: bilans wydatków (krok 1 ✅ 19.11.2026), systemy skrócone (krok 2 ✅ 19.11.2026; pomiar na iPhonie do zrobienia), powiadomienia po losowaniu (krok 3).
+- **Etap 4** Nowe funkcje, każda osobno: bilans wydatków (krok 1 ✅ 19.11.2026), systemy skrócone (krok 2 ✅ 19.11.2026; pomiar na iPhonie do zrobienia), powiadomienia po losowaniu (krok 3), logowanie wymagane do zapisywania (krok 4).
   - Ceny i wygrane zmieniają się rzadko: przy kolejnej zmianie dopisz linijkę w tabelach `CENY` / `TROJKA` w `bilans.js` (data = pierwsze losowanie po nowej cenie) i test w `tests/bilans.test.js`.
   - **Krok 3 – powiadomienia po losowaniu (plan zatwierdzony przez właściciela 19.11.2026; część A ✅ 19.11.2026, część B opublikowana 19.11.2026).**
     - Plan:
@@ -182,6 +182,37 @@ Punkty poniżej to **Etap 1–6**. Tylko tak nazywamy etapy w rozmowach, commita
       7. Próbne powiadomienie najwyżej raz na minutę na użytkownika.
       8. Klucz prywatny VAPID pokazać właścicielowi tylko raz, z instrukcją, gdzie go wkleić w Supabase. Nie zapisywać go w żadnym pliku w repozytorium.
       9. Część A sprawdzamy na Androidzie właściciela. **Otwarty punkt: test powiadomień na iPhonie** (właściciel nie ma teraz iPhone'a).
+  - **Krok 4 – logowanie wymagane do zapisywania (plan i decyzje A, B zatwierdzone 19.11.2026; zrobione na gałęzi `etap4-krok4-logowanie`, NIE opublikowane – publikacja dopiero po potwierdzeniu przez właściciela nocnej wysyłki powiadomień; SQL `supabase/etap4_logowanie.sql` + test jeszcze nie uruchomione).**
+    - Bez konta: Start, Statystyki, Generator (generowanie i podgląd zestawów), sprawdzanie kuponu na historii losowań.
+    - Z kontem: zapisywanie zakładów, zakładka Zakłady, Ranking, grupy, Bilans, powiadomienia, systemy skrócone, import i eksport zakładów.
+    - Warunki właściciela:
+      1. Zakładki wymagające konta są widoczne w menu; po wejściu przyjazny ekran (co daje darmowe konto: zakłady na wszystkich urządzeniach, automatyczne sprawdzanie, ranking, powiadomienia) z przyciskami „Załóż darmowe konto” i „Zaloguj się”. Bez nachalnych okienek.
+      2. „Zapisz” u gościa → rejestracja lub logowanie, a po zalogowaniu zestaw zapisuje się automatycznie (nie może zginąć).
+      3. Zakłady zapisane na urządzeniu bez konta nie mogą zginąć: informacja, a po założeniu konta lub zalogowaniu propozycja przeniesienia do chmury. Nigdy nie usuwać danych z urządzenia bez zgody użytkownika.
+      4. Link `#join=KOD` u gościa: najpierw logowanie lub rejestracja, potem automatyczne dołączenie do grupy.
+      5. Zalogowany użytkownik nadal korzysta z aplikacji bez internetu (sesja zapamiętana na urządzeniu).
+      6. Podgląd „jako gość” dla właściciela: `?jako=gosc`, tylko na tym urządzeniu (jak `?jako=darmowy`).
+      7. Teksty bez presji; wyraźnie, że konto jest darmowe i dlaczego jest potrzebne.
+      8. Sprawdzić na Androidzie i iPhonie, różnice opisać.
+    - Decyzje właściciela (19.11.2026):
+      - A: gość ze starymi zakładami widzi je tylko do odczytu (z wynikami) i może pobrać kopię – wyjątek od „eksport tylko z kontem”.
+      - B: zestaw czekający na logowanie dostaje godzinę faktycznego zapisu (nie kliknięcia); gdy minęło losowanie, idzie na następne i aplikacja to mówi.
+      - Nie pisać, że zakłady bez konta „nigdy nie zostaną usunięte” (Safari na iPhonie potrafi czyścić dane strony) – zachęcać do „Przenieś na moje konto” albo „Pobierz kopię”.
+      - Zestaw czekający na logowanie wygasa po 7 dniach.
+      - Zakłady przeniesione z urządzenia nie liczą się do rankingu: identyfikator `dev-…`, a trigger `bets_ranked` (`supabase/etap4_logowanie.sql`) ustawia dla nich `ranked = false`; test `etap4_logowanie_test.sql`.
+    - Android / iPhone: na Androidzie link z e-maila otwiera Chrome, który dzieli dane z zainstalowaną aplikacją – czekający zestaw i kod grupy działają od razu. Na iPhonie Safari i aplikacja z ekranu początkowego mają osobne dane: po potwierdzeniu e-maila trzeba wrócić do aplikacji i się zalogować (aplikacja mówi to przy rejestracji). Test na iPhonie – otwarty punkt.
+  - **Po kroku 4 – szybsze wyniki w bazie niezależnie od GitHuba (pomysł właściciela 19.11.2026; do oceny i zgody, NIE zaczęte).**
+    - Powód: 19.11.2026 wyniki były na mbnet ok. 22:18, a z 16 zaplanowanych nocnych przebiegów automatu GitHub uruchomił tylko 2 (20:50 i 21:47 UTC). Przebieg z 21:47 pobrał wyniki do repozytorium, ale publikacja strony padła po stronie GitHuba („Fetching artifact metadata failed”). Strona i baza dostały wyniki dopiero po ręcznym uruchomieniu automatu (ok. 23:00).
+    - Wariant: w noce losowań baza (pg_cron + pg_net, co 10 min) sama pobiera `dl.txt` i `dl_plus.txt` z mbnet i dopisuje nowe losowania. Strona aktualizuje się dalej przez GitHuba.
+    - Plusy: wyniki w bazie (ranking, powiadomienia) ok. 10–20 min po publikacji na mbnet, bez zależności od opóźnień i awarii GitHuba; drugie, niezależne źródło dla bazy.
+    - Minusy i ryzyka:
+      1. Rozjazd z aplikacją: powiadomienie przyjdzie, zanim strona ma wyniki (aplikacja czyta `data/*.json` ze strony), więc Zakłady pokażą jeszcze „czekam na wyniki”. Do rozwiązania razem: aplikacja przy braku wyniku dociąga najnowsze losowania z tabeli `draws` (publiczny odczyt) albo powiadomienia czekają na stronę.
+      2. Dwa źródła zapisu do bazy: dziś import ze strony dopisuje tylko nowe numery (`on conflict do nothing`), więc pierwszy zapis wygrywa. Gdyby mbnet podał błąd i go poprawił, baza zostałaby z błędnymi liczbami. Potrzebne: łączenie wyłącznie po numerze losowania (nigdy po dacie – lekcja z 956 usuniętych losowań), import ze strony jako „wersja ostateczna”, który poprawia różniące się liczby i zapisuje to w dzienniku, oraz alarm Strażnika przy różnicy liczb między bazą a stroną.
+      3. Poprawność danych z nieszyfrowanego `http`: ktoś po drodze mógłby podmienić treść. Dopisywać tylko losowanie o kolejnym numerze, z datą wt/czw/sob z ostatnich 2 dni i 6 różnymi liczbami 1–49; Lotto i Lotto Plus z tej samej daty.
+      4. Więcej zapytań do mbnet (z bazy i z GitHuba, bez zgody i licencji) – ryzyko blokady adresu Supabase; kilkanaście małych zapytań na noc losowania, tylko do pierwszego sukcesu.
+      5. Parsowanie tekstu w SQL jest trudniejsze do przetestowania niż w Pythonie – potrzebny test SQL na przykładowych liniach (także błędnych).
+      6. Zmiana bazy i rozliczania (ranking, powiadomienia) – plan, test, zgoda właściciela, wyłącznik awaryjny.
+    - Tańsze uzupełnienia do rozważenia przy okazji: ponowienie nieudanej publikacji strony w automacie; import do bazy także z `raw.githubusercontent.com` (gdy GitHub pobrał wyniki, a publikacja strony padła – tak było 19.11).
 - **Etap 5** Wydajność przed promocją: ranking, zapis zakładów i synchronizacja przy tysiącach użytkowników.
   - Remisy w rankingu rozstrzygać wskaźnikami na jeden zakład (np. % zakładów z trójką), żeby więcej zakładów nie dawało przewagi.
 - **Etap 6** Google Play (aplikacja na Androida przez TWA) i płatności Premium (Play Billing) – dopiero gdy właściciel potwierdzi, że kwestie prawne (znak „Lotto”, reklama gier, licencja na dane) są zamknięte w osobnym projekcie.

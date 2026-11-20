@@ -169,8 +169,12 @@ window.Cloud = (() => {
   }
 
   // ---------------------------------------------------------- zakłady
-  function push(bet) { if (!user) return; const q = loadQ().filter(o => !(o.op === 'upsert' && o.bet.id === bet.id)); q.push({ op: 'upsert', bet }); saveQ(q); flush(); }
-  function remove(id) { if (!user) return; const q = loadQ().filter(o => o.bet?.id !== id && o.id !== id); q.push({ op: 'delete', id }); saveQ(q); flush(); }
+  // Kolejka działa też bez aktywnej sesji, jeśli na urządzeniu jest zalogowany właściciel (typer.owner) –
+  // np. bez internetu sesja nie może się odświeżyć. Wyśle się po powrocie połączenia (flush wymaga sesji).
+  const ownerKnown = () => { try { const v = JSON.parse(localStorage.getItem('typer.owner')); return !!v; } catch { return false; } };
+  const canQueue = () => !!user || ownerKnown();
+  function push(bet) { if (!canQueue()) return; const q = loadQ().filter(o => !(o.op === 'upsert' && o.bet.id === bet.id)); q.push({ op: 'upsert', bet }); saveQ(q); flush(); }
+  function remove(id) { if (!canQueue()) return; const q = loadQ().filter(o => o.bet?.id !== id && o.id !== id); q.push({ op: 'delete', id }); saveQ(q); flush(); }
 
   function flush() {
     if (!user || !sb) return Promise.resolve();

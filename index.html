@@ -50,7 +50,7 @@
 
   <main id="app">
     <div class="clock-warn" id="clockWarn" role="alert" hidden></div>
-    <div class="preview-bar" id="previewBar" hidden>👁 Podgląd jako użytkownik <b>darmowy</b> (tylko na tym urządzeniu). <a href="?jako=normalnie">Wyłącz podgląd</a></div>
+    <div class="preview-bar" id="previewBar" hidden>👁 Podgląd jako <b id="previewWho">użytkownik darmowy</b> (tylko na tym urządzeniu). <a href="?jako=normalnie">Wyłącz podgląd</a></div>
     <!-- START -->
     <section class="view active" id="view-home">
       <div class="card hero">
@@ -110,6 +110,8 @@
         </div>
 
         <div id="systemGen" hidden>
+          <div id="sysGate"></div>
+          <div id="sysInner">
           <p class="hint">Wybierz od 7 do 15 liczb: <b id="sysCount">0</b></p>
           <div class="picker" id="sysPicker"></div>
           <h3 class="sys-h">Gwarancja</h3>
@@ -118,6 +120,7 @@
           <div class="row-gap">
             <button class="btn" id="sysClear">Wyczyść</button>
             <button class="btn primary" id="sysBuild" disabled>Ułóż system</button>
+          </div>
           </div>
         </div>
 
@@ -166,6 +169,8 @@
 
     <!-- ZAKŁADY -->
     <section class="view" id="view-bets">
+      <div id="betsGate"></div>
+      <div id="betsBody">
       <div class="card bilans" id="bilans"></div>
       <div class="card">
         <div class="card-head"><h2>Moje zakłady</h2><span class="muted" id="betsSummary"></span></div>
@@ -178,6 +183,7 @@
         </div>
       </div>
       <div id="betList"></div>
+      </div>
     </section>
 
     <!-- RANKING -->
@@ -254,7 +260,9 @@
 
       <div class="card">
         <h2>Kopia i import zakładów</h2>
-        <p class="hint">Najwygodniej <a href="#account">załóż konto</a> – zakłady same pojawią się na każdym urządzeniu. Możesz też zrobić kopię w pliku. Import przyjmuje również stary plik <code>user_bets.csv</code>.</p>
+        <div id="ioGate"></div>
+        <div id="ioBody">
+        <p class="hint">Zakłady z konta są na każdym urządzeniu, na którym się zalogujesz. Możesz też zrobić kopię w pliku. Import przyjmuje również stary plik <code>user_bets.csv</code>.</p>
         <div class="row-gap">
           <button class="btn" id="exportBtn">⬇️ Eksportuj</button>
           <label class="btn" for="importFile">⬆️ Importuj</label>
@@ -262,6 +270,7 @@
           <button class="btn" id="shareBtn">📤 Udostępnij</button>
         </div>
         <div id="ioMsg" class="hint"></div>
+        </div>
       </div>
 
       <div class="card">
@@ -312,6 +321,7 @@
   <script src="bilans.js"></script>
   <script src="systemy.js"></script>
   <script src="push.js"></script>
+  <script src="dostep.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
