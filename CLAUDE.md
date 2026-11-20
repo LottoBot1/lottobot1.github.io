@@ -105,6 +105,7 @@ GitHub Action cron (Tue/Thu/Sat every 15 min 20:05–23:50 UTC, deploy only when
   - Włącz: `select cron.alter_job(jobid, active := true) from cron.job where jobname in ('typer-draws-night-a', 'typer-draws-night-b', 'typer-push-check');`
   - Sprawdź stan: `select jobname, active from cron.job where jobname like 'typer-%' order by jobname;`
   - Po wyłączeniu: automatyczne powiadomienia stają od razu (wysyłka, która właśnie trwa, dokończy się – to kilka sekund). Wyniki nadal przychodzą do bazy co 30 min (zadania `typer-draws-request/process` zostają), ranking działa, próbne powiadomienie działa. Ponowne uruchomienie `etap4_powiadomienia_b.sql` włącza zadania z powrotem.
+- **Logowanie wymagane do zapisywania (Etap 4, krok 4) – opublikowane i sprawdzone 20.11.2026 (v2.9.0).** Bez konta: Start, Statystyki, Generator, sprawdzanie kuponu. Zapis zakładu wymaga konta, a zestaw zapisany przed logowaniem zapisuje się sam po zalogowaniu. Zakłady przeniesione z urządzenia nie liczą się do rankingu. Otwarty punkt: test na iPhonie.
 - **Reklam jeszcze nie ma.**
 - **Brak regulaminu.** Jest tylko polityka prywatności, a regulamin będzie potrzebny przed płatną subskrypcją i Google Play.
 - **Tymczasowa infrastruktura:**
@@ -160,7 +161,7 @@ Punkty poniżej to **Etap 1–6**. Tylko tak nazywamy etapy w rozmowach, commita
 - **Etap 1** ✅ (zrobione 18–19.11.2026) Poprawka czasu: rozliczanie zakładów zawsze według czasu polskiego (Europe/Warsaw), niezależnie od strefy i zegara urządzenia, zgodnie z logiką bazy (`bet_results`). Ostrzeżenie dla użytkownika, gdy zegar urządzenia jest przestawiony o więcej niż 15 min. Do tej logiki powstaje automatyczny test.
 - **Etap 2** ✅ (zrobione 19.11.2026) Szybkie poprawki: napis „rankingi (wkrótce)”, przestarzały README.md, ekran Premium bez wzmianek o Google Play (aplikacja działa też na iPhonie).
 - **Etap 3** ✅ (19.11.2026 – skonfigurowany, próbny alarm dotarł e-mailem) Ostrzeżenia o awariach: właściciel dostaje e-mail, gdy przez ponad 3,5 dnia nie przyjdą nowe wyniki, gdy automat GitHuba się wysypie lub stanie, gdy baza przestanie pobierać wyniki lub gdy przestanie działać hasło do Gmaila. Rozwiązanie: Strażnik + healthchecks.io (szczegóły w „Monitoring”).
-- **Etap 4** Nowe funkcje, każda osobno: bilans wydatków (krok 1 ✅ 19.11.2026), systemy skrócone (krok 2 ✅ 19.11.2026; pomiar na iPhonie do zrobienia), powiadomienia po losowaniu (krok 3), logowanie wymagane do zapisywania (krok 4).
+- **Etap 4** Nowe funkcje, każda osobno: bilans wydatków (krok 1 ✅ 19.11.2026), systemy skrócone (krok 2 ✅ 19.11.2026; pomiar na iPhonie do zrobienia), powiadomienia po losowaniu (krok 3 ✅), logowanie wymagane do zapisywania (krok 4 ✅ 20.11.2026; test na iPhonie do zrobienia).
   - Ceny i wygrane zmieniają się rzadko: przy kolejnej zmianie dopisz linijkę w tabelach `CENY` / `TROJKA` w `bilans.js` (data = pierwsze losowanie po nowej cenie) i test w `tests/bilans.test.js`.
   - **Krok 3 – powiadomienia po losowaniu (plan zatwierdzony przez właściciela 19.11.2026; część A ✅ 19.11.2026, część B opublikowana 19.11.2026).**
     - Plan:
@@ -182,7 +183,7 @@ Punkty poniżej to **Etap 1–6**. Tylko tak nazywamy etapy w rozmowach, commita
       7. Próbne powiadomienie najwyżej raz na minutę na użytkownika.
       8. Klucz prywatny VAPID pokazać właścicielowi tylko raz, z instrukcją, gdzie go wkleić w Supabase. Nie zapisywać go w żadnym pliku w repozytorium.
       9. Część A sprawdzamy na Androidzie właściciela. **Otwarty punkt: test powiadomień na iPhonie** (właściciel nie ma teraz iPhone'a).
-  - **Krok 4 – logowanie wymagane do zapisywania (plan i decyzje A, B zatwierdzone 19.11.2026; zrobione na gałęzi `etap4-krok4-logowanie`, NIE opublikowane – publikacja dopiero po potwierdzeniu przez właściciela nocnej wysyłki powiadomień; SQL `supabase/etap4_logowanie.sql` + test jeszcze nie uruchomione).**
+  - **Krok 4 – logowanie wymagane do zapisywania ✅ (zamknięty 20.11.2026).** Test SQL (29/29, w tym reguły dostępu RLS) i `etap4_logowanie.sql` uruchomione w bazie; scalenie `fa9a8b4`, publikacja v2.9.0. Na żywej stronie sprawdzone: bez konta działają Start, Statystyki, Generator i sprawdzanie kuponu, a zapis prowadzi do logowania. Właściciel potwierdził na Androidzie, że zestaw zapisany bez konta pojawia się w Zakładach po zalogowaniu. Wycofanie migracji: `kopie_zapasowe/wycofanie_etap4_logowanie.sql` (lokalnie). Otwarty punkt: test na iPhonie.
     - Bez konta: Start, Statystyki, Generator (generowanie i podgląd zestawów), sprawdzanie kuponu na historii losowań.
     - Z kontem: zapisywanie zakładów, zakładka Zakłady, Ranking, grupy, Bilans, powiadomienia, systemy skrócone, import i eksport zakładów.
     - Warunki właściciela:
@@ -212,7 +213,7 @@ Punkty poniżej to **Etap 1–6**. Tylko tak nazywamy etapy w rozmowach, commita
       4. Więcej zapytań do mbnet (z bazy i z GitHuba, bez zgody i licencji) – ryzyko blokady adresu Supabase; kilkanaście małych zapytań na noc losowania, tylko do pierwszego sukcesu.
       5. Parsowanie tekstu w SQL jest trudniejsze do przetestowania niż w Pythonie – potrzebny test SQL na przykładowych liniach (także błędnych).
       6. Zmiana bazy i rozliczania (ranking, powiadomienia) – plan, test, zgoda właściciela, wyłącznik awaryjny.
-    - Tańsze uzupełnienia do rozważenia przy okazji: ponowienie nieudanej publikacji strony w automacie; import do bazy także z `raw.githubusercontent.com` (gdy GitHub pobrał wyniki, a publikacja strony padła – tak było 19.11).
+    - Tańsze uzupełnienia – zrobione 20.11.2026: ponowienie nieudanej publikacji strony w automacie oraz import do bazy także z `raw.githubusercontent.com`. Przed decyzją o mbnet ocenić, czy te dwa zabezpieczenia wystarczają (obserwacja kilku nocy losowań).
 - **Etap 5** Wydajność przed promocją: ranking, zapis zakładów i synchronizacja przy tysiącach użytkowników.
   - Remisy w rankingu rozstrzygać wskaźnikami na jeden zakład (np. % zakładów z trójką), żeby więcej zakładów nie dawało przewagi.
 - **Etap 6** Google Play (aplikacja na Androida przez TWA) i płatności Premium (Play Billing) – dopiero gdy właściciel potwierdzi, że kwestie prawne (znak „Lotto”, reklama gier, licencja na dane) są zamknięte w osobnym projekcie.
