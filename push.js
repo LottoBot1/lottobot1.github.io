@@ -1,6 +1,6 @@
 /* Typer49 – powiadomienia po losowaniu (Etap 4, krok 3): obsługa w przeglądarce.
    Android: przeglądarka i zainstalowana aplikacja. iPhone/iPad: tylko aplikacja dodana do ekranu
-   początkowego, iOS 16.4+. Funkcje czyste (support, iosVersion, keyBytes) są testowane w tests/push.test.js. */
+   początkowego, iOS 16.4+. Funkcje czyste (support, autoEnable, iosVersion, keyBytes) są testowane w tests/push.test.js. */
 (function (root) {
   'use strict';
 
@@ -21,6 +21,14 @@
       if (!standalone) return 'ios-install';
     }
     return hasSW && hasPush && hasNotification ? 'ok' : 'unsupported';
+  }
+
+  /* Czy po zalogowaniu (albo przy starcie) włączyć powiadomienia samemu, bez pytania:
+     to konto włączyło je wcześniej na tym urządzeniu (wanted = id konta), przeglądarka ma już zgodę,
+     urządzenie obsługuje powiadomienia, a adresu powiadomień jeszcze nie ma. */
+  function autoEnable(s) {
+    const { wanted = null, userId = null, permission = 'default', support: sup = 'unsupported', hasSub = false, online = true } = s || {};
+    return !!userId && wanted === userId && permission === 'granted' && sup === 'ok' && !hasSub && online !== false;
   }
 
   // Klucz publiczny VAPID (base64url) → bajty dla pushManager.subscribe.
@@ -67,6 +75,16 @@
     if (old) return old;
     return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(publicKey) });
   }
+  // Zapis u dostawcy bez pytania o zgodę – tylko gdy zgoda już jest (automatyczne włączenie po zalogowaniu).
+  // Safari na iPhonie może wymagać stuknięcia – wtedy zwraca null albo rzuca błąd. Nigdy nie wisi dłużej niż 10 s.
+  async function subscribeGranted(publicKey) {
+    if (permission() !== 'granted') return null;
+    return Promise.race([(async () => {
+      const reg = await root.navigator.serviceWorker.ready;
+      return (await reg.pushManager.getSubscription()) ||
+             reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(publicKey) });
+    })(), timeout(10000, null)]);
+  }
   // Wypisanie u dostawcy – od tej chwili dostawca odrzuca wysyłki na ten adres (404/410), a funkcja usuwa go z bazy.
   async function unsubscribeLocal() {
     const sub = await current();
@@ -74,7 +92,7 @@
     return sub;
   }
 
-  const api = { iosVersion, support, keyBytes, env, state, permission, current, subscribe, unsubscribeLocal };
+  const api = { iosVersion, support, autoEnable, keyBytes, env, state, permission, current, subscribe, subscribeGranted, unsubscribeLocal };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   root.TyperPush = api;
 })(typeof window !== 'undefined' ? window : globalThis);

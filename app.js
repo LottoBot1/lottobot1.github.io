@@ -1150,7 +1150,7 @@
       });
       if (t.id === 'delAccBtn') withBusy(t, async () => {
         if ($('#delConfirm').value.trim().toUpperCase() !== 'USUŃ') { setAcctMsg('Wpisz USUŃ, aby potwierdzić.'); return; }
-        await Cloud.deleteAccount(); toast('Konto zostało usunięte');
+        await Cloud.deleteAccount(); store.set('typer.pushWanted', null); toast('Konto zostało usunięte');
       });
     });
     body.addEventListener('submit', e => {
@@ -1418,14 +1418,31 @@
   const TP = window.TyperPush;
   const PUSH_HIDE = 'typer.pushHide';     // „Ukryj szczegóły na zablokowanym ekranie” (kopia ustawienia z bazy)
   const PUSH_SAVED = 'typer.pushSaved';   // {user, day, ep} – adres odświeżany w bazie najwyżej raz dziennie
-  const pn = { sub: null, busy: false, msg: '', ok: false };
+  const PUSH_WANTED = 'typer.pushWanted'; // id konta, które włączyło powiadomienia na tym urządzeniu (wylogowanie go nie kasuje)
+  const pn = { sub: null, busy: false, msg: '', ok: false, retry: false };
 
   const pushMark = sub => store.set(PUSH_SAVED, { user: Cloud.user?.id, day: isoDate(now()), ep: sub.endpoint.slice(-24) });
 
   // Przy starcie i logowaniu: adres tego urządzenia należy do zalogowanej osoby i jest świeży.
   async function syncPush(event) {
     if (!TP || !Cloud.enabled) return;
+    if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') { pn.msg = ''; pn.retry = false; }   // komunikat dotyczył poprzedniej sesji
     pn.sub = await TP.current();
+    if (!pn.sub && Cloud.user && TP.autoEnable({ wanted: store.get(PUSH_WANTED, null), userId: Cloud.user.id,
+        permission: TP.permission(), support: TP.state(), hasSub: false, online: navigator.onLine })) {
+      // to konto włączyło powiadomienia na tym urządzeniu, a wylogowanie je wyłączyło – włącz z powrotem bez pytania
+      let sub = null;
+      try {
+        sub = await TP.subscribeGranted(CFG.vapidPublicKey);
+        if (!sub) throw new Error('brak adresu');
+        await Cloud.pushSave(sub, store.get(PUSH_HIDE, false));
+        pn.sub = sub; pushMark(sub);
+      } catch {
+        if (sub) await TP.unsubscribeLocal().catch(() => {});
+        pn.sub = null; pn.retry = true;   // np. Safari wymaga stuknięcia – przełącznik zostaje wyłączony z podpowiedzią
+      }
+      return;
+    }
     if (!pn.sub) return;
     if (!Cloud.user) {
       // nikt nie jest zalogowany (np. wylogowanie albo wygasła sesja) – urządzenie nie może dostawać cudzych wyników;
@@ -1433,6 +1450,7 @@
       if (event === 'SIGNED_OUT' || navigator.onLine) { await TP.unsubscribeLocal(); pn.sub = null; }
       return;
     }
+    store.set(PUSH_WANTED, Cloud.user.id);   // powiadomienia działają na tym koncie – zapamiętaj (także dla włączonych przed tą wersją)
     const s = store.get(PUSH_SAVED, null);
     if (s && s.user === Cloud.user.id && s.day === isoDate(now()) && s.ep === pn.sub.endpoint.slice(-24)) return;
     try { await Cloud.pushSave(pn.sub, store.get(PUSH_HIDE, false)); pushMark(pn.sub); } catch { /* spróbujemy przy następnym otwarciu */ }
@@ -1448,7 +1466,7 @@
     const el = $('#pushBody'); if (!el) return;
     const st = TP ? TP.state() : 'unsupported';
     const msg = pn.msg ? `<p class="acct-msg ${pn.ok ? 'ok' : 'err'}">${esc(pn.msg)}</p>` : '';
-    const intro = `<p class="hint">Gdy masz zakład na losowanie (wt, czw, sob o 22:00 ${PL}), po pojawieniu się wyników – zwykle w ciągu godziny – dostaniesz powiadomienie, że Twoje zakłady są rozliczone. Przy 3 lub więcej trafieniach podamy ich liczbę. Stuknięcie otwiera Zakłady.</p>`;
+    const intro = `<p class="hint">Gdy masz zakład na losowanie we wtorek, czwartek lub sobotę o 22:00 ${PL}, po pojawieniu się wyników – zwykle w ciągu godziny – dostaniesz powiadomienie, że Twoje zakłady są rozliczone. Przy 3 lub więcej trafieniach podamy ich liczbę. Stuknięcie otwiera Zakłady.</p>`;
     const foot = `<p class="hint">Powiadomienia włącza się osobno na każdym telefonie i komputerze. <a href="privacy.html">Zasady prywatności</a>.</p>`;
     if (st === 'ios-install') {
       el.innerHTML = intro + `<p class="hint">📱 Na iPhonie i iPadzie powiadomienia działają tylko w aplikacji dodanej do ekranu początkowego (iOS 16.4 lub nowszy):<br>
@@ -1458,7 +1476,12 @@
     }
     if (st === 'ios-old') { el.innerHTML = intro + '<p class="hint">Powiadomienia na iPhonie wymagają iOS 16.4 lub nowszego. Zaktualizuj system: Ustawienia → Ogólne → Uaktualnienia.</p>'; return; }
     if (st !== 'ok' || !Cloud.enabled) { el.innerHTML = intro + '<p class="hint">Ta przeglądarka nie obsługuje powiadomień. Na Androidzie użyj Chrome.</p>'; return; }
-    if (!hasAccount()) { el.innerHTML = intro + accountGate('push', true); return; }
+    if (!hasAccount()) {
+      el.innerHTML = intro + `
+        <label class="switch-row"><input type="checkbox" id="pushToggle" disabled><span class="switch"></span><span>Powiadomienia po losowaniu</span></label>
+        <p class="hint"><a href="#account">Zaloguj się</a>, aby włączyć powiadomienia.</p>`;
+      return;
+    }
     if (!Cloud.user) { el.innerHTML = intro + '<p class="hint">Ustawienia powiadomień zmienisz, gdy połączenie z internetem wróci.</p>'; return; }
     if (TP.permission() === 'denied') {
       const os = TT.devicePlatform(navigator.userAgent, navigator.platform, navigator.maxTouchPoints || 0);
@@ -1473,6 +1496,7 @@
       <p class="hint">Po włączeniu powiadomienie pokazuje tylko „Nowe wyniki w Typer49”.</p>
       <button class="btn" id="pushTestBtn" ${dis}>🔔 Wyślij próbne powiadomienie</button>
       <p class="hint">Próbne powiadomienie sprawdza, czy powiadomienia docierają na to urządzenie.</p>` : ''}
+      ${!on && pn.retry ? '<p class="hint">Nie udało się włączyć powiadomień automatycznie. Stuknij przełącznik, aby włączyć je ponownie.</p>' : ''}
       ${msg}${foot}`;
   }
 
@@ -1492,12 +1516,13 @@
     if (!sub) { pushMsg('Nie udzielono zgody na powiadomienia.', false); return; }
     try { await Cloud.pushSave(sub, store.get(PUSH_HIDE, false)); }
     catch (e) { await TP.unsubscribeLocal(); throw e; }
-    pn.sub = sub; pushMark(sub);
+    pn.sub = sub; pushMark(sub); pn.retry = false;
+    store.set(PUSH_WANTED, Cloud.user.id);
     pushMsg('Powiadomienia włączone ✓', true);
   }
   async function pushOff() {
     await Cloud.pushOffDevice();
-    pn.sub = null; store.set(PUSH_SAVED, null);
+    pn.sub = null; pn.retry = false; store.set(PUSH_SAVED, null); store.set(PUSH_WANTED, null);   // świadome wyłączenie – nie włączaj samo
     pushMsg('Powiadomienia na tym urządzeniu wyłączone.', true);
   }
   async function pushHide(hide) {

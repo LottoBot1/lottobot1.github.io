@@ -70,3 +70,24 @@ test('base64url bez dopełnienia', () => {
   assert.deepEqual([...P.keyBytes('AQID')], [1, 2, 3]);
   assert.deepEqual([...P.keyBytes('_-8')], [255, 239]);
 });
+
+// Automatyczne włączenie powiadomień po zalogowaniu (gdy konto włączyło je wcześniej na tym urządzeniu).
+test('po zalogowaniu: włącza samo, gdy to konto chciało powiadomień i zgoda już jest', () => {
+  const base = { wanted: 'u1', userId: 'u1', permission: 'granted', support: 'ok', hasSub: false, online: true };
+  assert.equal(P.autoEnable(base), true);
+  assert.equal(P.autoEnable({ ...base, online: undefined }), true);
+});
+
+test('po zalogowaniu: nie włącza w pozostałych przypadkach', () => {
+  const base = { wanted: 'u1', userId: 'u1', permission: 'granted', support: 'ok', hasSub: false, online: true };
+  assert.equal(P.autoEnable({ ...base, userId: 'u2' }), false, 'inne konto na tym urządzeniu');
+  assert.equal(P.autoEnable({ ...base, userId: null }), false, 'nikt nie jest zalogowany');
+  assert.equal(P.autoEnable({ ...base, wanted: null }), false, 'użytkownik wyłączył powiadomienia albo nigdy ich nie włączył');
+  assert.equal(P.autoEnable({ ...base, permission: 'default' }), false, 'przeglądarka nie ma jeszcze zgody – nie pytamy sami');
+  assert.equal(P.autoEnable({ ...base, permission: 'denied' }), false, 'zgoda zablokowana');
+  assert.equal(P.autoEnable({ ...base, support: 'ios-install' }), false, 'iPhone w Safari bez instalacji');
+  assert.equal(P.autoEnable({ ...base, support: 'unsupported' }), false, 'przeglądarka bez powiadomień');
+  assert.equal(P.autoEnable({ ...base, hasSub: true }), false, 'adres już jest');
+  assert.equal(P.autoEnable({ ...base, online: false }), false, 'bez internetu');
+  assert.equal(P.autoEnable(), false, 'brak danych');
+});
