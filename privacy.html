@@ -16,24 +16,37 @@
   <div class="doc card">
     <p><a href="./">← Wróć do aplikacji</a></p>
     <h1>Zasady prywatności Typer49</h1>
-    <p class="muted">Obowiązują od: 17.11.2026 · ostatnia zmiana: 19.11.2026 (powiadomienia po losowaniu)</p>
+    <p class="muted">Obowiązują od: 17.11.2026 · ostatnia zmiana: 20.11.2026 (ranking i grupy, dostawcy techniczni, zapisywanie zakładów tylko z kontem)</p>
 
     <h2>1. Kto przetwarza dane</h2>
     <p>Administratorem danych jest twórca aplikacji Typer49. Kontakt we wszystkich sprawach dotyczących danych: <a id="contact" href="mailto:typer49.kontakt@gmail.com"><b>typer49.kontakt@gmail.com</b></a>.</p>
 
     <h2>2. Jakie dane zbieramy</h2>
     <ul>
-      <li><b>Bez konta:</b> żadnych. Zakłady i ustawienia zapisują się wyłącznie w pamięci Twojej przeglądarki.</li>
-      <li><b>Z kontem:</b> adres e-mail, zaszyfrowane hasło (nie znamy go), opcjonalny pseudonim oraz zapisane przez Ciebie zakłady (liczby, data, status „zagrany”).</li>
+      <li><b>Bez konta:</b> żadnych danych o Tobie na naszym serwerze. Bez konta nie zapisujesz zakładów. W pamięci Twojej przeglądarki zostają tylko ustawienia, zestaw czekający na zalogowanie (najwyżej 7 dni) i zakłady zapisane na tym urządzeniu we wcześniejszej wersji aplikacji (możesz je przenieść na konto, pobrać albo usunąć).</li>
+      <li><b>Z kontem:</b> adres e-mail, zaszyfrowane hasło (nie znamy go), opcjonalny pseudonim, ustawienie „pokazuj mnie w rankingu publicznym”, grupy, które założysz lub do których dołączysz, oraz zapisane przez Ciebie zakłady: liczby, data i godzina zapisu, gra (Lotto, Lotto Plus), sposób wyboru liczb, status „zagrany”, wpisana przez Ciebie kwota wygranej (Bilans) i informacja, czy zakład liczy się do rankingu.</li>
       <li><b>Gdy włączysz powiadomienia po losowaniu:</b> adres powiadomień urządzenia (techniczny adres nadany przez dostawcę powiadomień Twojej przeglądarki, razem z kluczami do szyfrowania treści), ustawienie „Ukryj szczegóły na zablokowanym ekranie” oraz informację, kiedy wysłaliśmy Ci powiadomienie (żeby nie wysłać go dwa razy). Szczegóły w punkcie 5.</li>
     </ul>
     <p>Nie zbieramy imienia, nazwiska, adresu, lokalizacji ani danych płatniczych. Nie używamy plików cookie do śledzenia.</p>
 
     <h2>3. Po co</h2>
-    <p>Wyłącznie żeby umożliwić logowanie i synchronizację Twoich zakładów między urządzeniami (podstawa prawna: wykonanie usługi, art. 6 ust. 1 lit. b RODO). Adres e-mail służy tylko do logowania, potwierdzenia konta i resetu hasła – nie wysyłamy reklam.</p>
+    <p>Wyłącznie żeby umożliwić logowanie, zapisywanie i sprawdzanie Twoich zakładów na wszystkich urządzeniach, Bilans, ranking oraz grupy znajomych (podstawa prawna: wykonanie usługi, art. 6 ust. 1 lit. b RODO). Adres e-mail służy tylko do logowania, potwierdzenia konta i resetu hasła – nie wysyłamy reklam.</p>
 
-    <h2>4. Gdzie są dane</h2>
-    <p>Dane konta przechowuje dostawca infrastruktury Supabase na serwerach w Unii Europejskiej (Frankfurt). Aplikacja jest hostowana w serwisie GitHub Pages. Danych nie sprzedajemy ani nie udostępniamy innym podmiotom (wyjątek: dostawcy powiadomień – punkt 5).</p>
+    <h2>4. Gdzie są dane i kto je widzi</h2>
+    <p><b>Co widzą inni gracze.</b> Twoich liczb, kwot ani adresu e-mail nie widzi nikt poza Tobą. Inni mogą zobaczyć tylko:</p>
+    <ul>
+      <li><b>w rankingu publicznym</b> – tylko jeśli sam go włączysz i ustawisz pseudonim: pseudonim, miejsce, liczbę zakładów liczonych do rankingu, średnią i najlepszą liczbę trafień oraz liczbę trójek;</li>
+      <li><b>w grupie</b> – tylko jej członkowie: nazwę grupy, listę członków oraz te same statystyki trafień. W grupie widać Cię zawsze, także bez rankingu publicznego: pod pseudonimem, a bez pseudonimu jako „Gracz” z czterema znakami identyfikatora.</li>
+    </ul>
+    <p><b>Gdzie przechowujemy dane.</b> Dane konta przechowuje dostawca infrastruktury Supabase na serwerach w Unii Europejskiej (Frankfurt).</p>
+    <p><b>Dostawcy techniczni.</b> Danych nie sprzedajemy. Przy działaniu aplikacji uczestniczą jednak dostawcy, którzy przetwarzają dane techniczne według własnych zasad, czasem także poza Unią Europejską:</p>
+    <ul>
+      <li><b>GitHub Pages</b> (hosting strony) – widzi adres IP urządzenia przy każdym otwarciu aplikacji;</li>
+      <li><b>jsDelivr</b> – z tego serwera pobiera się biblioteka logowania, więc on też widzi adres IP;</li>
+      <li><b>Supabase</b> – zapisuje adres IP w dziennikach logowania i zapytań (bezpieczeństwo, wykrywanie nadużyć);</li>
+      <li><b>Google (Gmail)</b> – e-maile z potwierdzeniem konta i resetem hasła wysyłamy ze skrzynki typer49.kontakt@gmail.com, więc Twój adres e-mail i treść tych wiadomości przechodzą przez serwery Google;</li>
+      <li><b>dostawcy powiadomień</b> – tylko gdy włączysz powiadomienia (punkt 5).</li>
+    </ul>
 
     <h2>5. Powiadomienia po losowaniu</h2>
     <ul>
@@ -44,7 +57,7 @@
     </ul>
 
     <h2>6. Jak długo</h2>
-    <p>Do czasu usunięcia konta (dane powiadomień – krócej, patrz punkt 5). Konto usuniesz samodzielnie w aplikacji: <i>Konto → Usuń konto</i> – wszystkie dane są wtedy trwale kasowane.</p>
+    <p>Do czasu usunięcia konta (dane powiadomień – krócej, patrz punkt 5). Konto usuniesz samodzielnie w aplikacji: <i>Konto → Usuń konto</i> – wszystkie dane są wtedy trwale kasowane: konto, pseudonim, zakłady, członkostwo w grupach i adresy powiadomień. <b>Uwaga:</b> grupy, których jesteś właścicielem, są usuwane razem z kontem – znikają także dla pozostałych członków. Dzienniki techniczne Supabase z adresami IP są kasowane automatycznie przez Supabase po krótkim czasie (na obecnym planie po 1 dniu).</p>
 
     <h2>7. Twoje prawa</h2>
     <p>Masz prawo do dostępu do danych, ich poprawienia, usunięcia, przeniesienia (eksport w zakładce „Więcej”), ograniczenia przetwarzania oraz wniesienia skargi do Prezesa Urzędu Ochrony Danych Osobowych.</p>

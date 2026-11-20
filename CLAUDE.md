@@ -216,6 +216,11 @@ Punkty poniżej to **Etap 1–6**. Tylko tak nazywamy etapy w rozmowach, commita
     - Tańsze uzupełnienia – zrobione 20.11.2026: ponowienie nieudanej publikacji strony w automacie oraz import do bazy także z `raw.githubusercontent.com`. Przed decyzją o mbnet ocenić, czy te dwa zabezpieczenia wystarczają (obserwacja kilku nocy losowań).
 - **Etap 5** Wydajność przed promocją: ranking, zapis zakładów i synchronizacja przy tysiącach użytkowników.
   - Remisy w rankingu rozstrzygać wskaźnikami na jeden zakład (np. % zakładów z trójką), żeby więcej zakładów nie dawało przewagi.
+  - Pomiar 20.11.2026 (test cofany, 1000 fikcyjnych kont): ranking ok. 6 ms na 1000 zakładów – 10 tys. 61 ms, 100 tys. 0,57 s, 200 tys. 1,2 s. Wtedy w bazie: 2 konta, 20 zakładów.
+- **Backlog (przed promocją, bez ustalonej kolejności; dopisane 20.11.2026)** – przy każdej zmianie zaktualizować też `privacy.html`:
+  - (a) E-maile: przejście z Gmaila na usługę maili transakcyjnych z własną domeną (limit Gmaila ok. 500 dziennie, adres i treść przechodzą przez Google).
+  - (b) Biblioteka logowania (`@supabase/supabase-js@2.45.4`) we własnym repozytorium zamiast z jsDelivr (mniej dostawców widzących adres IP, brak zależności od CDN).
+  - (c) Usunięcie konta właściciela grupy: przekazanie grupy innemu członkowi zamiast usuwania jej dla wszystkich (dziś kaskada w bazie usuwa grupę).
 - **Etap 6** Google Play (aplikacja na Androida przez TWA) i płatności Premium (Play Billing) – dopiero gdy właściciel potwierdzi, że kwestie prawne (znak „Lotto”, reklama gier, licencja na dane) są zamknięte w osobnym projekcie.
   - Rozważyć dwa poziomy Premium – decyzja razem z cenami. (Kod jest gotowy: poziomy i przypisanie funkcji są w `config.js` – `tiers`, `featureTiers`. Nowy poziom wymaga też nowej wartości `profiles.plan` w bazie.)
 
