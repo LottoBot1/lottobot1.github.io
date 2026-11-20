@@ -25,13 +25,23 @@ begin
 -- Łączenie bez zmian (process_draws): tylko po numerze losowania – dopisywane są wyłącznie numery większe od
 -- ostatniego w bazie, istniejące nigdy nie są nadpisywane. Nigdy po dacie.
 
--- Czy według terminarza powinno już być losowanie Lotto, którego nie ma w bazie (sprawdza ostatnie 3 dni).
+-- Godzina losowania danego dnia: 22:00 czasu polskiego (strefa Europe/Warsaw – zimą UTC+1, latem UTC+2),
+-- tak samo jak w process_draws().
+create or replace function public.draw_time_pl(p_day date) returns timestamptz
+language sql immutable set search_path = '' as $$
+  select (p_day + time '22:00') at time zone 'Europe/Warsaw';
+$$;
+revoke all on function public.draw_time_pl(date) from public, anon, authenticated;
+
+-- Czy według terminarza powinno już być losowanie Lotto, którego nie ma w bazie.
+-- Patrzy na terminarz z ostatnich 3 dni (zawsze jest w nim co najmniej jedno losowanie: najdłuższa przerwa sob→wt
+-- to 3 dni), więc przy dłuższej awarii nadal wykrywa brak, a import uzupełnia wszystkie brakujące numery.
 create or replace function public.draw_missing(p_at timestamptz default now()) returns boolean
 language sql stable set search_path = '' as $$
   select coalesce(max(s.t), '-infinity'::timestamptz)
        > coalesce((select max(d.draw_time) from public.draws d where d.game = 'lotto'), '-infinity'::timestamptz)
   from (
-    select (g::date + time '22:00') at time zone 'Europe/Warsaw' as t
+    select public.draw_time_pl(g::date) as t
     from generate_series((p_at at time zone 'Europe/Warsaw')::date - 3,
                          (p_at at time zone 'Europe/Warsaw')::date, interval '1 day') g
     where extract(isodow from g) in (2, 4, 6)
@@ -70,7 +80,17 @@ revoke all on function public.request_draws(timestamptz) from public, anon, auth
   res := res || jsonb_build_object('ok_po_ostatnim_losowaniu_nic_nie_brakuje', not public.draw_missing(l.draw_time + interval '1 hour'));
   res := res || jsonb_build_object('ok_przed_nastepnym_losowaniem_nic_nie_brakuje', not public.draw_missing(s - interval '30 minutes'));
   res := res || jsonb_build_object('ok_po_nastepnym_losowaniu_brakuje', public.draw_missing(s + interval '30 minutes'));
-  res := res || jsonb_build_object('ok_starsze_niz_3_dni_nie_brakuje', not public.draw_missing(s + interval '5 days'));
+  res := res || jsonb_build_object('ok_dluga_awaria_nadal_brakuje', public.draw_missing(s + interval '5 days')
+                                                                   and public.draw_missing(s + interval '9 days'));
+
+  -- ---------------------------------------------------------- 22:00 czasu polskiego: strefa Europe/Warsaw, nie stałe +01:00
+  res := res || jsonb_build_object('ok_zima_22_pl_to_21_utc', public.draw_time_pl(date '2026-11-17') = timestamptz '2026-11-17 21:00:00+00');
+  res := res || jsonb_build_object('ok_lato_22_pl_to_20_utc', public.draw_time_pl(date '2026-07-14') = timestamptz '2026-07-14 20:00:00+00');
+  res := res || jsonb_build_object('ok_dzien_zmiany_na_letni', public.draw_time_pl(date '2026-03-29') = timestamptz '2026-03-29 20:00:00+00'
+                                                              and public.draw_time_pl(date '2026-03-28') = timestamptz '2026-03-28 21:00:00+00');
+  res := res || jsonb_build_object('ok_dzien_zmiany_na_zimowy', public.draw_time_pl(date '2026-10-25') = timestamptz '2026-10-25 21:00:00+00'
+                                                               and public.draw_time_pl(date '2026-10-24') = timestamptz '2026-10-24 20:00:00+00');
+  res := res || jsonb_build_object('ok_ta_sama_godzina_co_import', public.draw_time_pl(l.draw_date) = l.draw_time);
 
   -- ---------------------------------------------------------- ile pobrań
   select count(*) into n0 from public.draw_import_requests;

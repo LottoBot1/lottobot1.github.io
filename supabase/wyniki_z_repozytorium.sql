@@ -9,13 +9,23 @@
 -- Łączenie bez zmian (process_draws): tylko po numerze losowania – dopisywane są wyłącznie numery większe od
 -- ostatniego w bazie, istniejące nigdy nie są nadpisywane. Nigdy po dacie.
 
--- Czy według terminarza powinno już być losowanie Lotto, którego nie ma w bazie (sprawdza ostatnie 3 dni).
+-- Godzina losowania danego dnia: 22:00 czasu polskiego (strefa Europe/Warsaw – zimą UTC+1, latem UTC+2),
+-- tak samo jak w process_draws().
+create or replace function public.draw_time_pl(p_day date) returns timestamptz
+language sql immutable set search_path = '' as $$
+  select (p_day + time '22:00') at time zone 'Europe/Warsaw';
+$$;
+revoke all on function public.draw_time_pl(date) from public, anon, authenticated;
+
+-- Czy według terminarza powinno już być losowanie Lotto, którego nie ma w bazie.
+-- Patrzy na terminarz z ostatnich 3 dni (zawsze jest w nim co najmniej jedno losowanie: najdłuższa przerwa sob→wt
+-- to 3 dni), więc przy dłuższej awarii nadal wykrywa brak, a import uzupełnia wszystkie brakujące numery.
 create or replace function public.draw_missing(p_at timestamptz default now()) returns boolean
 language sql stable set search_path = '' as $$
   select coalesce(max(s.t), '-infinity'::timestamptz)
        > coalesce((select max(d.draw_time) from public.draws d where d.game = 'lotto'), '-infinity'::timestamptz)
   from (
-    select (g::date + time '22:00') at time zone 'Europe/Warsaw' as t
+    select public.draw_time_pl(g::date) as t
     from generate_series((p_at at time zone 'Europe/Warsaw')::date - 3,
                          (p_at at time zone 'Europe/Warsaw')::date, interval '1 day') g
     where extract(isodow from g) in (2, 4, 6)
