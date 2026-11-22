@@ -14,6 +14,8 @@ on:
   schedule:
     - cron: "30 6 * * *"        # codziennie 06:30 UTC (7:30/8:30 czasu polskiego) – z Gmailem
     - cron: "15 2 * * 3,5,0"    # po losowaniach (śr/pt/nd 02:15 UTC) – bez Gmaila
+    - cron: "30 23 * * 2,4,6"   # noc losowania (wt/czw/sob 23:30 UTC = 0:30 zimą, 1:30 latem czasu polskiego):
+                                # czy są wyniki z dzisiejszego losowania – bez Gmaila
   workflow_dispatch:
     inputs:
       test_alarm:

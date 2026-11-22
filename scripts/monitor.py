@@ -2,10 +2,12 @@
 """Strażnik Typer49 – sprawdza, czy wszystko działa, i alarmuje, gdy coś się zepsuło.
 
 Uruchamiany przez GitHub Actions (.github/workflows/monitor.yml). Sprawdza:
-  1. wyniki na stronie – najnowsze losowanie nie starsze niż 3,5 dnia,
+  1. wyniki na stronie – najnowsze losowanie nie starsze niż 3,5 dnia, a 2,5 h po losowaniu
+     z terminarza (wt/czw/sob 22:00) jego wyniki już są; numeracja na stronie bez dziur,
   2. automat wyników na GitHubie – ostatni przebieg zakończony bez błędu,
-  3. bazę Supabase – ma te same wyniki co strona (najwyżej 8 h po losowaniu)
-     i wysłała powiadomienia po losowaniu (najwyżej 3 h po losowaniu),
+  3. bazę Supabase – ma te same wyniki co strona (najwyżej 8 h po losowaniu), ostatnie
+     losowania w bazie bez dziur i z tymi samymi datami i liczbami co na stronie,
+     i wysłała powiadomienia po losowaniu (najwyżej 3 h po losowaniu, bez nieudanych wysyłek),
   4. skrzynkę Gmail – hasło aplikacji działa (tylko logowanie, bez wysyłania; najwyżej raz na dobę).
 
 Wynik trafia do healthchecks.io: „OK” albo „problem” z opisem po polsku – healthchecks.io
@@ -37,6 +39,9 @@ GAME_NAMES = {"lotto": "Lotto", "lottoplus": "Lotto Plus"}
 RESULTS_MAX_AGE = timedelta(days=3, hours=12)   # zwykła przerwa sob→wt to ok. 3 dni
 DB_MAX_LAG = timedelta(hours=8)                  # od godziny losowania do wyników w bazie
 PUSH_GRACE = timedelta(hours=3)                  # od godziny losowania do wysłanych powiadomień
+SAME_NIGHT_GRACE = timedelta(hours=2, minutes=30)   # od losowania z terminarza do wyników na stronie
+DRAW_WEEKDAYS = (1, 3, 5)                        # wtorek, czwartek, sobota (poniedziałek = 0)
+DB_CHECK_ROWS = 20                               # ile ostatnich losowań z bazy porównujemy ze stroną
 HOLIDAY_NOTE = "Jeśli dziś lub wczoraj było święto, losowanie mogło zostać przesunięte."
 
 
@@ -64,6 +69,60 @@ def results_problem(game: str, latest: str | None, now: datetime) -> str | None:
     return (f"Brak nowych wyników {name} od {days:.1f} dnia (ostatnie: {fmt_pl(latest)}). "
             f"{HOLIDAY_NOTE} Jeśli nie – sprawdź automat wyników na GitHubie (zakładka Actions) "
             f"i czy źródło mbnet.com.pl działa.")
+
+
+def expected_draw(now: datetime) -> str | None:
+    """Data ostatniego losowania z terminarza (wt/czw/sob 22:00 czasu polskiego), od którego minęło 2,5 h."""
+    today = now.astimezone(WARSAW).date()
+    for i in range(8):
+        day = today - timedelta(days=i)
+        if day.weekday() in DRAW_WEEKDAYS and now - draw_instant(day.isoformat()) >= SAME_NIGHT_GRACE:
+            return day.isoformat()
+    return None
+
+
+def missing_draw_problem(game: str, latest: str | None, now: datetime) -> str | None:
+    """Alarm tej samej nocy: 2,5 h po losowaniu z terminarza jego wyników nadal nie ma na stronie.
+
+    Gdy brak wyników trwa już ponad 3,5 dnia, alarmuje results_problem – tu nie powtarzamy.
+    """
+    exp = expected_draw(now)
+    if not exp or not latest or latest >= exp or now - draw_instant(latest) > RESULTS_MAX_AGE:
+        return None
+    name = GAME_NAMES.get(game, game)
+    return (f"Brak wyników {name} z losowania {fmt_pl(exp)} (22:00 czasu polskiego) – minęło ponad 2,5 h "
+            f"(na stronie ostatnie: {fmt_pl(latest)}). {HOLIDAY_NOTE} Jeśli nie – sprawdź automat wyników "
+            f"na GitHubie (zakładka Actions) i czy źródło mbnet.com.pl działa.")
+
+
+def gaps(numbers: list[int]) -> list[tuple[int, int]]:
+    """Dziury w numeracji: pary (poprzedni, następny), między którymi brakuje numerów."""
+    s = sorted(set(numbers))
+    return [(a, b) for a, b in zip(s, s[1:]) if b - a != 1]
+
+
+def numbering_problem(game: str, site_draws: list, db_rows: list[dict] | None) -> str | None:
+    """Alarm, gdy w numeracji losowań jest dziura (strona albo ostatnie losowania w bazie)
+    albo gdy baza ma inną datę lub inne liczby niż strona dla tego samego numeru losowania."""
+    name = GAME_NAMES.get(game, game)
+    found: list[str] = []
+    fmt_gaps = lambda g: ", ".join(f"po nr {a} jest nr {b}" for a, b in g[:3])  # noqa: E731
+    site_gaps = gaps([d[0] for d in site_draws])
+    if site_gaps:
+        found.append(f"na stronie brakuje losowań ({fmt_gaps(site_gaps)})")
+    if db_rows:
+        db_gaps = gaps([r["no"] for r in db_rows])
+        if db_gaps:
+            found.append(f"w bazie brakuje losowań ({fmt_gaps(db_gaps)})")
+        site = {d[0]: (d[1], sorted(d[2])) for d in site_draws}
+        diff = [r["no"] for r in db_rows
+                if r["no"] in site and (r["draw_date"], sorted(r["nums"])) != site[r["no"]]]
+        if diff:
+            found.append(f"baza ma inne dane niż strona dla losowań nr {', '.join(map(str, sorted(diff)[:5]))}")
+    if not found:
+        return None
+    return (f"Numeracja {name}: " + "; ".join(found) + ". Wyniki w aplikacji, rankingu lub powiadomieniach "
+            f"mogą być błędne. Sprawdź dane w repozytorium (data/{game}.json) i tabelę draws w Supabase.")
 
 
 def db_problem(game: str, site_latest: str | None, db_latest: str | None, now: datetime) -> str | None:
@@ -104,6 +163,9 @@ def push_problem(h: dict | None, now: datetime) -> str | None:
                 f"(próby: {h.get('attempts')}). {where}")
     if not h.get("finished_at") and now - parse_ts(h["started_at"]) > timedelta(minutes=30):
         return f"Wysyłka powiadomień po losowaniu z {when} nie zakończyła się. {where}"
+    if h.get("finished_at") and (h.get("failed") or 0) > 0:
+        return (f"Część powiadomień po losowaniu z {when} nie dotarła: nieudane {h.get('failed')}, "
+                f"wysłane {h.get('sent')}. {where}")
     return None
 
 
@@ -155,10 +217,10 @@ def get_json(url: str, headers: dict | None = None, timeout: int = 30):
         return json.loads(r.read().decode("utf-8"))
 
 
-def site_latest(game: str) -> str | None:
+def site_draws(game: str) -> list:
+    """Wszystkie losowania ze strony: [[nr, "RRRR-MM-DD", [6 liczb]], …]."""
     data = get_json(f"{SITE}/data/{game}.json?t={int(datetime.now().timestamp())}")
-    draws = data.get("draws") or []
-    return max(d[1] for d in draws) if draws else None
+    return data.get("draws") or []
 
 
 def supabase_config() -> tuple[str, str]:
@@ -172,6 +234,13 @@ def db_latest(url: str, key: str, game: str) -> str | None:
     rows = get_json(f"{url}/rest/v1/draws?select=draw_date&game=eq.{game}&order=draw_date.desc&limit=1",
                     {"apikey": key, "Authorization": f"Bearer {key}"})
     return rows[0]["draw_date"] if rows else None
+
+
+def db_recent(url: str, key: str, game: str) -> list[dict]:
+    """Ostatnie losowania z bazy (kilkadziesiąt wierszy, tylko klucz publiczny)."""
+    return get_json(f"{url}/rest/v1/draws?select=no,draw_date,nums&game=eq.{game}"
+                    f"&order=no.desc&limit={DB_CHECK_ROWS}",
+                    {"apikey": key, "Authorization": f"Bearer {key}"})
 
 
 def push_health(url: str, key: str) -> dict | None:
@@ -220,12 +289,14 @@ def main() -> int:
 
     # 1. wyniki na stronie
     latest: dict[str, str | None] = {}
+    draws: dict[str, list] = {}
     for game in GAME_NAMES:
         try:
-            latest[game] = site_latest(game)
-            p = results_problem(game, latest[game], now)
-            if p:
-                problems.append(p)
+            draws[game] = site_draws(game)
+            latest[game] = max(d[1] for d in draws[game]) if draws[game] else None
+            for p in (results_problem(game, latest[game], now), missing_draw_problem(game, latest[game], now)):
+                if p:
+                    problems.append(p)
         except Exception as e:                       # noqa: BLE001
             latest[game] = None
             problems.append(f"Nie da się pobrać wyników {GAME_NAMES[game]} ze strony {SITE} ({e}). "
@@ -252,6 +323,10 @@ def main() -> int:
                 p = db_problem(game, latest.get(game), db_latest(url, key, game), now)
                 if p:
                     problems.append(p)
+                if game in draws:                    # strona odpowiedziała – porównujemy numerację
+                    p = numbering_problem(game, draws[game], db_recent(url, key, game))
+                    if p:
+                        problems.append(p)
             except Exception as e:                   # noqa: BLE001
                 problems.append(f"Baza Supabase nie odpowiada ({e}). Sprawdź w Supabase, czy projekt "
                                 f"nie jest wstrzymany (Paused) – darmowy plan usypia bazę po 7 dniach bez ruchu.")

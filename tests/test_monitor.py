@@ -50,6 +50,82 @@ class Results(unittest.TestCase):
         self.assertIsNotNone(M.results_problem("lotto", None, at("2026-11-18T09:00:00Z")))
 
 
+class SameNight(unittest.TestCase):
+    # sobota 21.11.2026: losowanie 22:00 czasu polskiego = 21:00 UTC; nocny Strażnik 23:30 UTC
+    def test_oczekiwane_losowanie(self):
+        self.assertEqual(M.expected_draw(at("2026-11-21T23:30:00Z")), "2026-11-21")
+        self.assertEqual(M.expected_draw(at("2026-11-21T23:29:00Z")), "2026-11-19")   # 2 h 29 min – jeszcze nie
+        self.assertEqual(M.expected_draw(at("2026-11-21T23:00:00Z")), "2026-11-19")   # przed 2,5 h
+        self.assertEqual(M.expected_draw(at("2026-11-23T10:00:00Z")), "2026-11-21")   # poniedziałek
+
+    def test_lato_23_30_utc_to_1_30_czasu_polskiego(self):
+        # wtorek 14.07.2026: losowanie 20:00 UTC, nocny Strażnik 23:30 UTC = 3,5 h później
+        self.assertEqual(M.expected_draw(at("2026-07-14T23:30:00Z")), "2026-07-14")
+
+    def test_wyniki_sa_bez_alarmu(self):
+        self.assertIsNone(M.missing_draw_problem("lotto", "2026-11-21", at("2026-11-21T23:30:00Z")))
+
+    def test_brak_wynikow_tej_nocy(self):
+        p = M.missing_draw_problem("lottoplus", "2026-11-19", at("2026-11-21T23:30:00Z"))
+        self.assertIn("Lotto Plus", p)
+        self.assertIn("21.11.2026", p)
+        self.assertIn("Jeśli dziś lub wczoraj było święto, losowanie mogło zostać przesunięte", p)
+
+    def test_przed_2_5_h_bez_alarmu(self):
+        self.assertIsNone(M.missing_draw_problem("lotto", "2026-11-19", at("2026-11-21T23:00:00Z")))
+
+    def test_po_3_5_dnia_alarmuje_tylko_results_problem(self):
+        now = at("2026-11-21T23:30:00Z")
+        self.assertIsNone(M.missing_draw_problem("lotto", "2026-11-14", now))
+        self.assertIsNotNone(M.results_problem("lotto", "2026-11-14", now))
+
+    def test_brak_danych(self):
+        self.assertIsNone(M.missing_draw_problem("lotto", None, at("2026-11-21T23:30:00Z")))
+
+
+class Numbering(unittest.TestCase):
+    SITE = [[1, "2026-11-14", [1, 2, 3, 4, 5, 6]], [2, "2026-11-17", [7, 8, 9, 10, 11, 12]],
+            [3, "2026-11-19", [13, 14, 15, 16, 17, 18]], [4, "2026-11-21", [21, 25, 30, 36, 43, 44]]]
+
+    def db(self, *rows):
+        return [{"no": n, "draw_date": d, "nums": x} for n, d, x in rows]
+
+    def test_wszystko_zgodne(self):
+        rows = self.db(*[tuple(r) for r in reversed(self.SITE)])
+        self.assertIsNone(M.numbering_problem("lotto", self.SITE, rows))
+
+    def test_baza_w_tyle_to_nie_dziura(self):
+        rows = self.db(*[tuple(r) for r in reversed(self.SITE[:3])])
+        self.assertIsNone(M.numbering_problem("lotto", self.SITE, rows))
+
+    def test_kolejnosc_liczb_bez_znaczenia(self):
+        rows = self.db((4, "2026-11-21", [44, 43, 36, 30, 25, 21]))
+        self.assertIsNone(M.numbering_problem("lotto", self.SITE, rows))
+
+    def test_dziura_na_stronie(self):
+        site = [self.SITE[0], self.SITE[1], self.SITE[3]]
+        p = M.numbering_problem("lotto", site, None)
+        self.assertIn("na stronie brakuje", p)
+        self.assertIn("po nr 2 jest nr 4", p)
+
+    def test_dziura_w_bazie(self):
+        rows = self.db(tuple(self.SITE[3]), tuple(self.SITE[1]))
+        p = M.numbering_problem("lottoplus", self.SITE, rows)
+        self.assertIn("Lotto Plus", p)
+        self.assertIn("w bazie brakuje", p)
+
+    def test_inne_liczby_lub_data_w_bazie(self):
+        rows = self.db((4, "2026-11-21", [21, 25, 30, 36, 43, 45]), (3, "2026-11-20", [13, 14, 15, 16, 17, 18]))
+        p = M.numbering_problem("lotto", self.SITE, rows)
+        self.assertIn("inne dane", p)
+        self.assertIn("nr 3, 4", p)
+
+    def test_prawdziwe_pliki_z_repozytorium_bez_dziur(self):
+        for game in M.GAME_NAMES:
+            data = json.loads((Path(M.ROOT) / "data" / f"{game}.json").read_text(encoding="utf-8"))
+            self.assertIsNone(M.numbering_problem(game, data["draws"], None), game)
+
+
 class Database(unittest.TestCase):
     def test_baza_aktualna(self):
         self.assertIsNone(M.db_problem("lotto", "2026-11-17", "2026-11-17", at("2026-11-19T08:00:00Z")))
@@ -138,6 +214,13 @@ class Push(unittest.TestCase):
         hang = self.h(started_at="2026-11-19T23:00:00+00:00", attempts=1, has_error=False)
         self.assertIsNone(M.push_problem(hang, at("2026-11-19T23:50:00Z")))     # przed 3 h
         self.assertIn("nie zakończyła", M.push_problem(hang, at("2026-11-20T01:15:00Z")))
+
+    def test_nieudane_wysylki(self):
+        part = self.h(started_at="2026-11-19T22:10:00+00:00", finished_at="2026-11-19T22:10:20+00:00",
+                      attempts=1, has_error=False, users=5, sent=4, failed=2)
+        p = M.push_problem(part, at("2026-11-20T01:15:00Z"))
+        self.assertIn("nieudane 2", p)
+        self.assertIn("19.11.2026", p)
 
     def test_stare_losowanie_i_brak_danych(self):
         self.assertIsNone(M.push_problem(self.h(), at("2026-11-24T22:00:00Z")))
