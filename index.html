@@ -18,7 +18,7 @@
   <!-- Ekran 18+: jeśli na tym urządzeniu już potwierdzono, nie pokazuj go nawet na chwilę (decyzję i tak podejmuje app.js) -->
   <script>try { var a = JSON.parse(localStorage.getItem('typer.adult')); if (a && a.v === 1) document.documentElement.classList.add('adult-ok'); } catch (e) {}</script>
 </head>
-<body>
+<body class="app">
   <div class="age-gate" id="ageGate" role="dialog" aria-modal="true" aria-labelledby="ageTitle">
     <div class="age-box">
       <span class="brand-ball" aria-hidden="true">49</span>

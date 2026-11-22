@@ -35,7 +35,8 @@
   background: radial-gradient(900px 500px at 10% -10%, rgba(124,92,255,.25), transparent 60%), var(--bg);
 }
 html.adult-ok .age-gate { display: none; }
-html:not(.adult-ok) body { overflow: hidden; }
+/* blokada przewijania tylko w aplikacji (body.app w index.html); osobne strony, np. privacy.html, przewijają się zawsze */
+html:not(.adult-ok) body.app { overflow: hidden; }
 .age-box {
   width: 100%; max-width: 420px; text-align: center; display: flex; flex-direction: column; gap: 12px; align-items: stretch;
   padding: 24px 20px; border-radius: var(--r); background: var(--card); border: 1px solid var(--card-b); box-shadow: var(--shadow);
