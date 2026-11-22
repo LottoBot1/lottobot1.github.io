@@ -27,6 +27,10 @@ on:
         description: "Test ponawiania: pierwsza próba publikacji celowo się nie uda"
         type: boolean
         default: false
+      symuluj_dwa_bledy_publikacji:
+        description: "Test alarmu: dwie pierwsze próby publikacji celowo się nie udadzą (strona wyjdzie za 3. razem, przebieg z błędem)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -95,7 +99,7 @@ jobs:
           if [ -n "$(git status --porcelain data)" ]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
             git config user.name  "lotto-bot"
-            git config user.email "lotto-bot@users.noreply.github.com"
+            git config user.email "357825526+LottoBot1@users.noreply.github.com"
             git add data
             git commit -m "Aktualizacja wyników $(date -u +'%Y-%m-%d %H:%M') UTC"
             git pull --rebase -q origin main
@@ -167,14 +171,16 @@ jobs:
           path: _site
 
       # Publikacja: do 3 prób z przerwami 1 i 2 min – usługa GitHuba bywa chwilowo niedostępna
-      # (19.11.2026: „Fetching artifact metadata failed”). Błąd przebiegu (i e-mail) dopiero po 3 nieudanych próbach.
+      # (19.11.2026: „Fetching artifact metadata failed”). Po 2 nieudanych próbach przebieg kończy się błędem
+      # (e-mail z GitHuba) – także wtedy, gdy 3. próba opublikuje stronę (krok „Alarm” na końcu).
       # Test: Actions → Aktualizacja wyników → Run workflow z opcją „symuluj_blad_publikacji” –
-      # pierwsza próba szuka nieistniejącej paczki, druga powinna się udać.
+      # pierwsza próba szuka nieistniejącej paczki, druga powinna się udać. Opcja „symuluj_dwa_bledy_publikacji”:
+      # nie udają się dwie pierwsze próby, trzecia publikuje stronę, a przebieg kończy się błędem.
       - id: deploy1
         continue-on-error: true
         uses: actions/deploy-pages@v5.0.1
         with:
-          artifact_name: ${{ inputs.symuluj_blad_publikacji && 'test-brak-paczki' || 'github-pages' }}
+          artifact_name: ${{ (inputs.symuluj_blad_publikacji || inputs.symuluj_dwa_bledy_publikacji) && 'test-brak-paczki' || 'github-pages' }}
       - name: Przerwa przed 2. próbą publikacji (60 s)
         if: steps.deploy1.outcome == 'failure'
         run: echo "::warning::1. próba publikacji nieudana – ponawiam za 60 s"; sleep 60
@@ -182,9 +188,18 @@ jobs:
         if: steps.deploy1.outcome == 'failure'
         continue-on-error: true
         uses: actions/deploy-pages@v5.0.1
+        with:
+          artifact_name: ${{ inputs.symuluj_dwa_bledy_publikacji && 'test-brak-paczki' || 'github-pages' }}
       - name: Przerwa przed 3. próbą publikacji (120 s)
         if: steps.deploy1.outcome == 'failure' && steps.deploy2.outcome == 'failure'
         run: echo "::warning::2. próba publikacji nieudana – ponawiam za 120 s"; sleep 120
       - id: deploy3
         if: steps.deploy1.outcome == 'failure' && steps.deploy2.outcome == 'failure'
         uses: actions/deploy-pages@v5.0.1
+      # Strona jest już opublikowana (3. próba), a last-good ustawiono wcześniej – ten krok tylko oznacza
+      # przebieg jako nieudany, żeby GitHub wysłał e-mail, a Strażnik zgłosił problem z publikacją.
+      - name: Alarm – dwie nieudane próby publikacji z rzędu
+        if: steps.deploy1.outcome == 'failure' && steps.deploy2.outcome == 'failure' && steps.deploy3.outcome == 'success'
+        run: |
+          echo "::error::Publikacja strony nie udała się 2 razy z rzędu. Strona została opublikowana za 3. razem – sprawdź, czy GitHub (Pages/Actions) nie ma awarii (githubstatus.com)."
+          exit 1
