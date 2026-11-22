@@ -1578,7 +1578,11 @@
     const guest = !hasAccount();
     $('#ioGate').innerHTML = guest ? accountGate('io', true) : '';
     $('#ioBody').hidden = guest;
-    $('#wipeBtn').hidden = guest;
+    const wipe = $('#wipeBtn'), empty = !state.bets.length;
+    wipe.hidden = guest;
+    wipe.textContent = Cloud.user ? 'Usuń wszystkie moje zakłady (z konta, na wszystkich urządzeniach)' : 'Usuń wszystkie zakłady z tego urządzenia';
+    wipe.disabled = empty;
+    $('#wipeHint').hidden = guest || !empty;
   }
   function renderAll() {
     $$('.topbar .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.game === state.game));
@@ -1738,7 +1742,8 @@
     $('#manDate').value = lastDrawTime().date;
     $('#wipeBtn').addEventListener('click', () => {
       const where = Cloud.user ? 'z konta (na wszystkich urządzeniach)' : 'z tego urządzenia';
-      if (state.bets.length && confirm(`Usunąć wszystkie ${state.bets.length} zakłady ${where}? Tego nie da się cofnąć (chyba że masz eksport).`)) {
+      if (!state.bets.length) { toast('Nie masz zapisanych zakładów'); return; }
+      if (confirm(`Usunąć wszystkie ${state.bets.length} zakłady ${where}? Tego nie da się cofnąć (chyba że masz eksport).`)) {
         if (Cloud.user) state.bets.forEach(b => Cloud.remove(b.id));
         state.bets = []; saveBets(); renderAll(); toast('Usunięto zakłady');
       }

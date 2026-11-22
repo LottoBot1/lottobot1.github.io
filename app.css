@@ -64,9 +64,17 @@ code { background: var(--chip); padding: 1px 5px; border-radius: 6px; }
   box-shadow: 0 4px 14px rgba(124,92,255,.5);
 }
 .brand-name { font-weight: 750; letter-spacing: .2px; white-space: nowrap; }
-@media (max-width: 400px) { .brand-name { font-size: .92rem; } .brand-sub { max-width: 38vw; } .seg-btn { padding: 7px 10px; } }
+.brand > div { min-width: 0; }   /* pozwala skracać datę „…” zamiast nachodzić na przyciski */
 .brand-sub { font-size: .75rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 46vw; }
-.topbar-actions { display: flex; align-items: center; gap: 8px; }
+.topbar-actions { display: flex; align-items: center; gap: 8px; flex: none; }
+/* Wąskie telefony (iPhone 320–430 px): data „Wyniki do …” w osobnej linii pod paskiem */
+@media (max-width: 480px) {
+  .topbar { flex-wrap: wrap; row-gap: 2px; padding-bottom: 6px; }
+  .brand, .brand > div { display: contents; }
+  .brand-ball { margin-right: -2px; }
+  .brand-name { margin-right: auto; }
+  .brand-sub { order: 10; flex: 1 0 100%; max-width: none; padding-left: 1px; }
+}
 .icon-btn {
   width: 40px; height: 40px; border-radius: 12px; border: 1px solid var(--card-b);
   background: var(--card); display: grid; place-items: center;
@@ -79,6 +87,14 @@ code { background: var(--chip); padding: 1px 5px; border-radius: 6px; }
 .seg-btn.active { background: linear-gradient(135deg, var(--accent), #5b8cff); color: #fff; box-shadow: 0 3px 10px rgba(124,92,255,.4); }
 .seg.small { margin: 4px 0 12px; }
 .seg.small .seg-btn { padding: 6px 12px; font-size: .82rem; }
+@media (max-width: 400px) { .brand-name { font-size: .92rem; } .topbar .seg-btn { padding: 7px 10px; } }
+@media (max-width: 340px) {   /* najmniejsze telefony (np. iPhone SE 1. gen.) – pasek w jednej linii */
+  .topbar { gap: 6px; padding-left: 12px; padding-right: 12px; }
+  .topbar-actions { gap: 5px; }
+  .brand-ball { width: 32px; height: 32px; font-size: .8rem; }
+  .topbar .icon-btn { width: 36px; height: 36px; }
+  .topbar .seg-btn { padding: 6px 8px; }
+}
 
 /* ---------- nav ---------- */
 .tabs {
@@ -187,6 +203,7 @@ main { max-width: 1100px; margin: 0 auto; padding: 14px 16px; }
 .btn.primary { background: linear-gradient(135deg, var(--accent), #5b8cff); color: #fff; border: 0; box-shadow: 0 6px 18px rgba(124,92,255,.4); }
 .btn.primary:disabled { opacity: .45; box-shadow: none; }
 .btn.danger { color: #fff; background: rgba(239,68,68,.85); border: 0; }
+.btn.danger:disabled { opacity: .45; cursor: default; }
 .btn.big { width: 100%; padding: 15px; font-size: 1.05rem; margin-top: 8px; }
 .btn.sm { padding: 6px 10px; font-size: .82rem; border-radius: 10px; }
 .input { background: var(--chip); border: 1px solid var(--card-b); border-radius: 12px; padding: 10px 12px; min-width: 0; outline: none; }
