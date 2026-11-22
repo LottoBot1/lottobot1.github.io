@@ -420,7 +420,7 @@
       <div class="bet-res">
         <span>Oczekujące: <b>${pending.length}</b></span>
         ${latest ? `<span>Rozliczone z ${fmtShort(latest.date)}: <b>${lastDone.length}</b></span>` : ''}
-        ${lastDone.length ? `<span>Najlepszy wynik: <b>${best} traf.</b></span>` : ''}
+        ${lastDone.length ? `<span>Najwięcej trafień: <b>${best}</b></span>` : ''}
       </div>
       ${state.bets.length ? '' : '<p class="hint">Nie masz jeszcze zakładów – przejdź do Generatora.</p>'}`;
   }
@@ -1337,15 +1337,15 @@
     try {
       const [rows, s] = await Promise.all([Cloud.ranking(rk.period, rk.scope === 'group' ? rk.group : null), Cloud.myStats(rk.period)]);
       my.innerHTML = [
-        [s.bets || 0, 'rozliczone'], [fmtAvg(s.avg_hits), 'śr. trafień'], [s.best || 0, 'najlepszy'], [s.hits3 || 0, 'trafione 3+'],
+        [s.bets || 0, 'rozliczone'], [fmtAvg(s.avg_hits), 'śr. trafień'], [s.best || 0, 'najwięcej trafień'], [s.hits3 || 0, 'trafione 3+'],
       ].map(([v, l]) => `<div class="stat"><b>${v}</b><span>${l}</span></div>`).join('');
       list.innerHTML = rows && rows.length ? rows.map(r => `
         <div class="rank-row ${r.is_me ? 'me' : ''}">
-          <div class="rank-pos">${r.pos <= 3 ? ['🥇', '🥈', '🥉'][r.pos - 1] : r.pos}</div>
-          <div class="rank-nick">${esc(r.nick)}${r.is_me ? ' (Ty)' : ''}<small>${r.bets} zakł. · najlepszy ${r.best} · 3+: ${r.hits3}×</small></div>
+          <div class="rank-pos">${r.pos}</div>
+          <div class="rank-nick">${esc(r.nick)}${r.is_me ? ' (Ty)' : ''}<small>${r.bets} zakł. · najwięcej trafień ${r.best} · 3+: ${r.hits3}×</small></div>
           <div class="rank-score">${fmtAvg(r.avg_hits)}<small>śr. traf.</small></div>
         </div>`).join('')
-        : `<p class="muted">${rk.scope === 'group' ? 'W tej grupie nie ma jeszcze rozliczonych zakładów.' : 'Ranking jest jeszcze pusty – bądź pierwszy! Potrzeba min. 3 rozliczonych zakładów i włączonej widoczności.'}</p>`;
+        : `<p class="muted">${rk.scope === 'group' ? 'W tej grupie nie ma jeszcze rozliczonych zakładów.' : 'Ranking jest jeszcze pusty. Pojawiają się w nim osoby z co najmniej 3 rozliczonymi zakładami i włączoną widocznością.'}</p>`;
     } catch (e) { list.innerHTML = `<p class="acct-msg err">${esc(e.message)}</p>`; }
   }
 

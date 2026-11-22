@@ -90,7 +90,12 @@ jobs:
         with:
           python-version: "3.12"
 
+      # Rzadziej pytamy źródło (szczegóły w scripts/update_data.py): push kodu – bez pobierania,
+      # codziennie 12:00 UTC i ręczne uruchomienie – pełne pobranie, pozostałe przebiegi z harmonogramu –
+      # tylko gdy w danych brakuje ostatniego losowania z terminarza.
       - name: Pobierz najnowsze wyniki
+        env:
+          UPDATE_MODE: ${{ github.event_name == 'push' && 'push' || ((github.event_name == 'workflow_dispatch' || github.event.schedule == '0 12 * * *') && 'full' || 'auto') }}
         run: python scripts/update_data.py
 
       - name: Zapisz zmiany w repozytorium

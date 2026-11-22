@@ -39,9 +39,13 @@ function drawMessage(t: Target, no: number, date: string): Payload {
   const hits = (best: number, plus: boolean) => `${best} ${hitsWord(best)}${plus ? " w Lotto Plus" : ""}`;
   let body = "Wyniki są, Twoje zakłady zostały rozliczone.";
   if (t.played_best >= 3) {
-    body = `${t.played_count > 1 ? "Twój najlepszy zagrany zakład" : "Twój zagrany zakład"} ma ${hits(t.played_best, t.played_plus)}.`;
+    body = t.played_count > 1
+      ? `Najwięcej trafień w Twoich zagranych zakładach: ${hits(t.played_best, t.played_plus)}.`
+      : `Twój zagrany zakład ma ${hits(t.played_best, t.played_plus)}.`;
   } else if (t.saved_best >= 3) {
-    body = `${t.saved_count > 1 ? "Twój najlepszy zapisany zestaw" : "Twój zapisany zestaw"} ma ${hits(t.saved_best, t.saved_plus)}.`;
+    body = t.saved_count > 1
+      ? `Najwięcej trafień w Twoich zapisanych zestawach: ${hits(t.saved_best, t.saved_plus)}.`
+      : `Twój zapisany zestaw ma ${hits(t.saved_best, t.saved_plus)}.`;
   }
   return { title, body, url, tag };
 }

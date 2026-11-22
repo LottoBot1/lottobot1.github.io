@@ -7,17 +7,56 @@ ale można je też odpalić ręcznie:  python scripts/update_data.py
 Nie wymaga żadnych dodatkowych bibliotek (tylko standardowa biblioteka Pythona).
 
 Zasady bezpieczeństwa danych:
-  * istniejące losowania nigdy nie są usuwane – nowe są DOKLEJANE (po dacie),
+  * istniejące losowania nigdy nie są usuwane – nowe są DOKLEJANE (po numerze losowania),
   * jeżeli źródło nie odpowie lub zwróci śmieci, plik zostaje bez zmian.
+
+Rzadziej pytamy źródło (mbnet.com.pl, bez zgody i licencji – nie obciążamy go niepotrzebnie).
+Tryb ustawia automat w zmiennej UPDATE_MODE:
+  * full – zawsze pobieraj (codziennie o 12:00 UTC, ręczne uruchomienie; domyślnie przy uruchomieniu ręcznym
+           z komputera) – wczyta też losowanie w nietypowy dzień (święta) i ewentualne poprawki w źródle,
+  * auto – pobieraj tylko, gdy w danych brakuje ostatniego losowania z terminarza (wt/czw/sob 22:00
+           czasu polskiego); gdy wyniki już są, przebieg nic nie pobiera,
+  * push – nie pobieraj (push kodu na main: publikujemy kod z danymi, które już są w repozytorium).
+Strażnik (scripts/monitor.py) niezależnie alarmuje, gdy wyników brakuje.
 """
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 import urllib.request
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
+
+WARSAW = ZoneInfo("Europe/Warsaw")
+DRAW_WEEKDAYS = (1, 3, 5)   # wtorek, czwartek, sobota (poniedziałek = 0)
+MODES = ("full", "auto", "push")
+
+
+def last_scheduled_draw(now: datetime) -> str:
+    """Data ostatniego losowania z terminarza (wt/czw/sob 22:00 czasu polskiego), które już się odbyło."""
+    today = now.astimezone(WARSAW).date()
+    for i in range(8):
+        day: date = today - timedelta(days=i)
+        drawn = datetime(day.year, day.month, day.day, 22, 0, tzinfo=WARSAW)
+        if day.weekday() in DRAW_WEEKDAYS and drawn <= now:
+            return day.isoformat()
+    raise AssertionError("terminarz bez losowania w ostatnim tygodniu")   # nie powinno się zdarzyć
+
+
+def should_download(mode: str, latest: dict[str, str | None], now: datetime) -> tuple[bool, str]:
+    """Czy pobierać pliki ze źródła. latest = {gra: data ostatniego losowania w danych albo None}."""
+    if mode == "push":
+        return False, "push kodu – bez pobierania (dane bez zmian)"
+    if mode != "auto":
+        return True, "pełne pobranie"
+    exp = last_scheduled_draw(now)
+    missing = [g for g, d in latest.items() if not d or d < exp]
+    if missing:
+        return True, f"brak losowania z {exp} ({', '.join(missing)}) – pobieram"
+    return False, f"dane mają już losowanie z {exp} – bez pobierania"
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "data"
@@ -137,6 +176,19 @@ def update_game(key: str, cfg: dict) -> bool:
 
 
 def main() -> int:
+    mode = os.environ.get("UPDATE_MODE", "full").strip().lower()
+    if mode not in MODES:
+        print(f"  ! nieznany UPDATE_MODE={mode!r} – pełne pobranie")
+        mode = "full"
+    latest = {}
+    for key, cfg in GAMES.items():
+        existing = load_existing(DATA_DIR / cfg["file"])
+        latest[key] = max((d[1] for d in existing), default=None)
+    go, why = should_download(mode, latest, datetime.now(timezone.utc))
+    print(f"Tryb {mode}: {why}")
+    if not go:
+        print("Zmiany: nie")
+        return 0
     changed = [update_game(k, c) for k, c in GAMES.items()]
     print("Zmiany:", "tak" if any(changed) else "nie")
     return 0
