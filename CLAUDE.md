@@ -224,7 +224,7 @@ Punkty poniżej to **Etap 1–6**. Tylko tak nazywamy etapy w rozmowach, commita
   - (a) E-maile: przejście z Gmaila na usługę maili transakcyjnych z własną domeną (limit Gmaila ok. 500 dziennie, adres i treść przechodzą przez Google).
   - (b) Biblioteka logowania (`@supabase/supabase-js@2.45.4`) we własnym repozytorium zamiast z jsDelivr (mniej dostawców widzących adres IP, brak zależności od CDN).
   - (c) Usunięcie konta właściciela grupy: przekazanie grupy innemu członkowi zamiast usuwania jej dla wszystkich (dziś kaskada w bazie usuwa grupę).
-  - (d) Nowa wersja aplikacji – pasek „Dostępna nowa wersja – Odśwież” (v2.9.5, 22.11.2026; sprawdzone lokalnie zmianą wersji v2.9.5→v2.9.6→v2.9.8). Prawdziwy test: przy następnej publikacji (v2.9.6) – otwarta aplikacja po powrocie powinna pokazać pasek. Otwarty punkt: iPhone.
+  - (d) Nowa wersja aplikacji – pasek „Dostępna nowa wersja – Odśwież” (v2.9.5, 22.11.2026; sprawdzone lokalnie zmianą wersji v2.9.5→v2.9.6→v2.9.8). Pasek „Nowa wersja – odśwież” potwierdzony na Androidzie przy publikacji v2.9.5 → v2.9.6 (22.11.2026). iPhone nie sprawdzony.
   - (e) Przed promocją: odpowiedzieć na pytanie, co zachęci do pobrania aplikacji (wygląd, marketing) – uwaga od testera iPhone (22.11.2026).
   - (f) Mapa cieplna w Statystykach przy 320 px jest o 15 px szersza niż ekran (stary problem; zauważone 22.11.2026).
 - **Etap 6** Google Play (aplikacja na Androida przez TWA) i płatności Premium (Play Billing) – dopiero gdy właściciel potwierdzi, że kwestie prawne (znak „Lotto”, reklama gier, licencja na dane) są zamknięte w osobnym projekcie.
