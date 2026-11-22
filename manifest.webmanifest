@@ -1,7 +1,7 @@
 {
   "name": "Typer49",
   "short_name": "Typer49",
-  "description": "Wyniki gier 6/49, statystyki, generator zestawów i automatyczne sprawdzanie kuponów.",
+  "description": "Wyniki i statystyki gier liczbowych 6/49, generator zestawów i sprawdzanie zapisanych kuponów. Narzędzie informacyjne dla osób pełnoletnich – nie zwiększa szansy wygranej.",
   "lang": "pl",
   "start_url": "./",
   "scope": "./",

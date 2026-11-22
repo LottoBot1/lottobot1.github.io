@@ -32,13 +32,13 @@ Aplikacja webowa (PWA) do analizy gier liczbowych 6/49 (Lotto i Lotto Plus). Dzi
 | Działało tylko na jednym laptopie | Strona na GitHub Pages: jeden adres, działa na każdym urządzeniu, także offline. |
 | Baza CSV zapisywała same liczby, bez dat (deduplikacja „po liczbach” gubiła losowania) | Każde losowanie ma numer i datę, nowe są doklejane i nic nie jest kasowane. |
 | Zakład był porównywany zawsze z *ostatnim* losowaniem | Zakład jest rozliczany z losowaniem, **na które został zagrany** (pierwszym po jego utworzeniu), osobno dla Lotto i Lotto Plus. |
-| Ciężka sieć neuronowa (scikit-learn) | „Model trendu”: ważona częstość + zaległość, liczony od razu w telefonie. |
+| Ciężkie obliczenia wymagające komputera | „Ważona częstość”: częstość + przerwa od ostatniego wystąpienia, liczona od razu w telefonie. Opisuje przeszłość, nie przewiduje wyników. |
 
 ## Funkcje
 
 - **Start:** odliczanie do losowania, ostatnie wyniki Lotto i Lotto Plus, podsumowanie zakładów, alert, gdy wynik się spóźnia.
-- **Generator:** metody Statystyka (2 gorące + 2 zimne + 2 losowe), Model trendu, Losowo i Własne (wybór liczb palcem). Do tego 7 filtrów z poprzedniej wersji, które można włączać i wyłączać.
-- **Statystyki:** mapa cieplna 1–49 (częstość, zaległość, ocena modelu), gorące, zimne i zaległe liczby, parzyste/nieparzyste, sumy, najczęstsze pary. Zakres: 50, 100, 250, 500 lub wszystkie losowania od 1957 r.
+- **Generator:** metody Statystyka (2 najczęstsze + 2 najrzadsze + 2 losowe), Ważona częstość, Losowo i Własne (wybór liczb palcem). Do tego 7 filtrów z poprzedniej wersji, które można włączać i wyłączać.
+- **Statystyki:** mapa cieplna 1–49 (częstość, przerwa, ważona częstość), liczby najczęstsze, najrzadsze i najdłużej niewylosowane, parzyste/nieparzyste, sumy, najczęstsze pary. Zakres: 50, 100, 250, 500 lub wszystkie losowania od 1957 r.
 - **Zakłady:** status oczekujący lub rozliczony, podświetlone trafienia, przełącznik „Zagrany”, „Ponów” na kolejne losowanie, filtry.
 - **Więcej:** sprawdzanie dowolnego kuponu (także na całej historii), eksport i import zakładów (w tym stary `user_bets.csv`), ręczne dodanie wyniku, instalacja na telefonie.
 

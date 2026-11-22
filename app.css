@@ -215,6 +215,10 @@ main { max-width: 1100px; margin: 0 auto; padding: 14px 16px; }
 
 .filters { margin: 8px 0; border: 1px solid var(--card-b); border-radius: 14px; padding: 4px 12px; }
 .filters summary { padding: 10px 0; font-weight: 600; cursor: pointer; }
+.filters.about { margin: 0 0 12px; }
+/* krótki komunikat o losowości / 18+ (Generator, Statystyki) */
+.note-line { margin: 10px 0 0; font-size: .78rem; line-height: 1.4; color: var(--muted); }
+.note-line a { color: inherit; font-weight: 700; }
 .switch-row { display: flex; align-items: center; gap: 12px; padding: 9px 0; font-size: .9rem; cursor: pointer; }
 .switch-row input { position: absolute; opacity: 0; pointer-events: none; }
 .switch { flex: none; width: 44px; height: 26px; border-radius: 13px; background: var(--chip); border: 1px solid var(--card-b); position: relative; transition: background .2s; }

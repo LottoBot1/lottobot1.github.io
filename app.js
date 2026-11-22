@@ -369,7 +369,7 @@
     return { status: 'done', date, target, L, P, hl, hp, best, plusMissing: b.plus && !P };
   }
 
-  const METHOD_LABEL = { stat: 'Statystyka', trend: 'Model trendu', random: 'Losowo', manual: 'Własne', system: 'System skrócony', ai: 'AI (stary program)', import: 'Import' };
+  const METHOD_LABEL = { stat: 'Statystyka', trend: 'Ważona częstość', random: 'Losowo', manual: 'Własne', system: 'System skrócony', ai: 'Import (stary program)', import: 'Import' };
 
   // ------------------------------------------------------------------ render: START
   function renderHome() {
@@ -436,8 +436,8 @@
 
   // ------------------------------------------------------------------ render: GENERATOR
   const METHOD_HINT = {
-    stat: 'Klasyka z poprzedniej wersji: 2 liczby „gorące”, 2 „zimne” i 2 losowe, z filtrami.',
-    trend: 'Zastępuje starą sieć neuronową: liczby ważone częstością z ostatnich 300 losowań (nowsze ważą więcej) i zaległością. Lżejsze, działa w telefonie.',
+    stat: '2 liczby najczęstsze, 2 najrzadsze w wybranym okresie i 2 losowe, z filtrami. To nie zwiększa szansy wygranej.',
+    trend: 'Liczby ważone częstością z ostatnich 300 losowań (nowsze ważą więcej) i przerwą od ostatniego wystąpienia. Opisuje przeszłość, nie przewiduje wyników.',
     random: 'Czysty przypadek – matematycznie tak samo dobry jak każda inna metoda. Filtry nadal działają.',
     manual: 'Zaznacz własne liczby i zapisz kupon, żeby aplikacja go sprawdziła po losowaniu.',
     system: 'System skrócony: wybierasz 7–15 liczb, a aplikacja układa z nich mniej zakładów niż system pełny, z gwarancją mniejszej wygranej, gdy część wylosowanych liczb będzie wśród Twoich.',
@@ -457,7 +457,7 @@
     $('#filtersCount').textContent = `(${FILTERS.filter(([k]) => state.filters[k]).length}/${FILTERS.length} aktywne)`;
     if (state.method === 'trend') {
       const st = stats(state.game, 0);
-      $('#methodHint').innerHTML = esc(METHOD_HINT.trend) + `<br>Model faworyzuje teraz: <b>${st.trendTop.slice().sort((a, b) => a - b).join(', ')}</b>`;
+      $('#methodHint').innerHTML = esc(METHOD_HINT.trend) + `<br>Najwyżej w zestawieniu: <b>${st.trendTop.slice().sort((a, b) => a - b).join(', ')}</b>`;
     }
     renderPicker();
     if (state.lastGen.length && !$('#genResults').innerHTML) renderGenResults();   // zestawy odtworzone po aktualizacji
@@ -683,7 +683,7 @@
     const pct = st.n ? (st.freq[n] / st.n * 100).toFixed(1) : 0;
     const allSt = stats(state.game, 0);
     $('#heatDetail').innerHTML = `<b>${n}</b>: padła ${st.freq[n]}× w ${st.n} losowaniach (${pct}%, średnio ${(600 / 49).toFixed(1)}%) · ` +
-      `ostatnio ${st.gap[n] === 0 ? 'w ostatnim losowaniu' : st.gap[n] + ' losowań temu'} · w całej historii ${allSt.freq[n]}× · ocena modelu ${Math.round(st.trend[n] * 100)}/100`;
+      `ostatnio ${st.gap[n] === 0 ? 'w ostatnim losowaniu' : st.gap[n] + ' losowań temu'} · w całej historii ${allSt.freq[n]}× · wskaźnik częstości ${Math.round(st.trend[n] * 100)}/100`;
   }
 
   // ------------------------------------------------------------------ render: ZAKŁADY
@@ -768,7 +768,7 @@
         ${readonly ? '' : `${prizeField(b, e)}
         <div class="bet-actions">
           <label class="switch-row"><input type="checkbox" data-played="${id}" ${b.played ? 'checked' : ''}><span class="switch"></span><span>Zagrany</span></label>
-          <button class="btn sm" data-again="${id}" title="Zagraj te same liczby w następnym losowaniu">↻ Ponów</button>
+          <button class="btn sm" data-again="${id}" title="Zapisz te same liczby na następne losowanie">↻ Ponów</button>
           <button class="btn sm" data-del="${id}" title="Usuń">🗑</button>
         </div>`}
       </div>`;
@@ -1239,12 +1239,12 @@
     ['Synchronizacja między urządzeniami', '✓', '✓'],
     ['Zestawy z generatora na raz', 'do 3', 'do 10'],
     ['Aktywne (oczekujące) zakłady', 'do 10', 'bez limitu'],
-    ['Model trendu', '–', '✓'],
+    ['Ważona częstość', '–', '✓'],
     ['Statystyki z 250 / 500 / wszystkich losowań', '–', '✓'],
-    ['Mapa „Model”, najczęstsze pary', '–', '✓'],
+    ['Mapa ważonej częstości, najczęstsze pary', '–', '✓'],
     ['Powiadomienia po losowaniu', '✓', '✓'],
     ['Bilans wydatków (odpowiedzialna gra)', '✓', '✓'],
-    ['Systemy skrócone (7–15 liczb, gwarancja 3–5 trafień)', '–', '✓'],
+    ['Systemy skrócone (7–15 liczb; określona liczba trafień tylko wtedy, gdy wylosowane liczby są wśród wybranych)', '–', '✓'],
     ['Bez reklam (gdy pojawią się reklamy)', '–', '✓'],
   ];
   function renderPremium() {
@@ -1360,7 +1360,7 @@
 
   async function shareInvite(g) {
     const url = `${location.origin}${location.pathname}#join=${g.invite_code}`;
-    const text = `Dołącz do mojej grupy „${g.name}” w Typer49 i porównajmy nasze typy! Kod: ${g.invite_code}`;
+    const text = `Dołącz do mojej grupy „${g.name}” w Typer49 i porównajmy wyniki! Kod: ${g.invite_code}`;
     try {
       if (navigator.share) await navigator.share({ title: 'Typer49 – zaproszenie', text, url });
       else { await navigator.clipboard.writeText(`${text}\n${url}`); toast('Skopiowano zaproszenie do schowka'); }
@@ -1619,7 +1619,7 @@
     // generator
     $('#methodChips').addEventListener('click', e => {
       const c = e.target.closest('.chip'); if (!c) return;
-      if (c.dataset.method === 'trend' && !requireFeature('trend', 'Model trendu')) return;
+      if (c.dataset.method === 'trend' && !requireFeature('trend', 'Ważona częstość')) return;
       if (c.dataset.method === 'system' && !requireFeature('systems', 'Systemy skrócone')) return;
       state.method = c.dataset.method; renderGen();
     });
@@ -1696,7 +1696,7 @@
     });
     $('#heatMode').addEventListener('click', e => {
       const c = e.target.closest('.seg-btn'); if (!c) return;
-      if (c.hasAttribute('data-premium') && !requireFeature('heatModel', 'Mapa modelu')) return;
+      if (c.hasAttribute('data-premium') && !requireFeature('heatModel', 'Mapa ważonej częstości')) return;
       state.heatMode = c.dataset.mode; renderStats();
     });
     $('#heat').addEventListener('click', e => { const c = e.target.closest('.cell'); if (c) heatDetail(+c.dataset.n); });
@@ -1818,8 +1818,16 @@
     try { sysWorker = new Worker('systemy.js'); } catch { sysWorker = false; }
   }
 
+  // Link „Więcej” przy komunikacie o losowości → zakładka Więcej z rozwiniętą sekcją „O aplikacji i odpowiedzialna gra”
+  document.addEventListener('click', e => {
+    const a = e.target.closest && e.target.closest('[data-about]'); if (!a) return;
+    e.preventDefault(); setView('more');
+    const d = $('#aboutApp'); d.open = true;
+    setTimeout(() => d.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+  });
+
   // ------------------------------------------------------------------ start
-  const VIEWS = ['home', 'gen', 'stats', 'bets', 'rank', 'more', 'account', 'premium'];
+  const VIEWS =['home', 'gen', 'stats', 'bets', 'rank', 'more', 'account', 'premium'];
   document.title = (window.APP_CONFIG && window.APP_CONFIG.name) || document.title;
   bind();
   bindAccount();

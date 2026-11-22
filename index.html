@@ -76,7 +76,7 @@
         <div class="card-head"><h2>Generator zakładów</h2><span class="pill" id="genGameLabel"></span></div>
         <div class="chips" id="methodChips">
           <button class="chip active" data-method="stat">📊 Statystyka</button>
-          <button class="chip" data-method="trend" data-premium>📈 Model trendu</button>
+          <button class="chip" data-method="trend" data-premium>📈 Ważona częstość</button>
           <button class="chip" data-method="random">🎲 Losowo</button>
           <button class="chip" data-method="manual">✋ Własne</button>
           <button class="chip" data-method="system" data-premium>🧩 System</button>
@@ -97,6 +97,7 @@
             <div id="filterList"></div>
           </details>
           <button class="btn primary big" id="genBtn">Losuj zestawy</button>
+          <p class="note-line">🔞 18+ · Wyniki losowań są losowe – żadna metoda nie zwiększa szans. <a href="#more" data-about>Więcej</a></p>
         </div>
 
         <div id="manualGen" hidden>
@@ -149,16 +150,17 @@
         <p class="hint" id="rangeInfo"></p>
         <div class="seg small" id="heatMode">
           <button class="seg-btn active" data-mode="freq">Częstość</button>
-          <button class="seg-btn" data-mode="gap">Zaległość</button>
-          <button class="seg-btn" data-mode="trend" data-premium>Model</button>
+          <button class="seg-btn" data-mode="gap">Przerwa</button>
+          <button class="seg-btn" data-mode="trend" data-premium>Ważona częstość</button>
         </div>
         <div class="heat" id="heat"></div>
         <div class="heat-detail" id="heatDetail">Dotknij liczby, aby zobaczyć szczegóły.</div>
+        <p class="note-line">Statystyka opisuje przeszłość, nie przewiduje losowań.</p>
       </div>
       <div class="grid3">
-        <div class="card"><h3>🔥 Gorące</h3><div class="balls sm" id="hotBalls"></div></div>
-        <div class="card"><h3>❄️ Zimne</h3><div class="balls sm" id="coldBalls"></div></div>
-        <div class="card"><h3>⏳ Najdłużej nie padły</h3><div class="balls sm" id="gapBalls"></div></div>
+        <div class="card"><h3>Najczęstsze (w wybranym okresie)</h3><div class="balls sm" id="hotBalls"></div></div>
+        <div class="card"><h3>Najrzadsze (w wybranym okresie)</h3><div class="balls sm" id="coldBalls"></div></div>
+        <div class="card"><h3>⏳ Najdłużej nie padły</h3><div class="balls sm" id="gapBalls"></div><p class="note-line">Dawno niewylosowana liczba nie ma większej szansy.</p></div>
       </div>
       <div class="grid2">
         <div class="card"><h3>Parzyste / nieparzyste</h3><div class="bars" id="evenBars"></div></div>
@@ -211,7 +213,7 @@
 
         <div class="card">
           <h2>Moje grupy</h2>
-          <p class="hint">Rywalizuj ze znajomymi: załóż grupę i wyślij im kod lub link zaproszenia.</p>
+          <p class="hint">Porównuj wyniki ze znajomymi: załóż grupę i wyślij im kod lub link zaproszenia.</p>
           <div id="groupList"></div>
           <form class="row-gap" id="groupCreate">
             <input class="input" name="name" maxlength="40" placeholder="Nazwa nowej grupy, np. Rodzinka">
@@ -295,9 +297,14 @@
       </div>
 
       <div class="card">
-        <h2>O aplikacji</h2>
-        <p class="hint">Typer49 to niezależne narzędzie do analizy wyników gier liczbowych 6/49. Nie jest powiązane z Totalizatorem Sportowym; nazwy gier „Lotto” i „Lotto Plus” służą wyłącznie do ich wskazania. Wyniki pobierane są automatycznie po każdym losowaniu (wt, czw, sob ok. 22:00). Źródło danych: mbnet.com.pl. <a href="privacy.html">Zasady prywatności</a>.</p>
-        <p class="hint">⚠️ Losowania Lotto są całkowicie losowe – żadna statystyka ani model nie zwiększa szansy wygranej (6 z 49 to 1 do 13 983 816). Filtry pomagają co najwyżej unikać popularnych kombinacji, by ewentualną wygraną dzielić z mniejszą liczbą osób. Graj odpowiedzialnie, 18+.</p>
+        <details class="filters about" id="aboutApp">
+          <summary>O aplikacji i odpowiedzialna gra</summary>
+          <p class="hint">⚠️ Losowania są całkowicie losowe – żadna statystyka, metoda, filtr ani system nie zwiększa szansy wygranej (6 z 49 to 1 do 13 983 816). Filtry pomagają co najwyżej unikać popularnych kombinacji, by ewentualną wygraną dzielić z mniejszą liczbą osób.</p>
+          <p class="hint">🔞 Aplikacja jest przeznaczona dla osób pełnoletnich (18+). Graj odpowiedzialnie: ustal z góry kwotę na grę i nie próbuj odgrywać strat.</p>
+          <p class="hint">Typer49 to niezależne narzędzie do analizy wyników gier liczbowych 6/49. Nie jest powiązane z Totalizatorem Sportowym. Lotto i Lotto Plus są znakami towarowymi ich właściciela; ich nazwy służą tu wyłącznie do wskazania gier.</p>
+          <p class="hint">Wyniki pobierane są automatycznie po każdym losowaniu (wt, czw, sob ok. 22:00). Źródło danych: mbnet.com.pl.</p>
+          <p class="hint"><a href="privacy.html">Zasady prywatności</a></p>
+        </details>
         <button class="btn danger" id="wipeBtn">Usuń wszystkie zakłady z tego urządzenia</button>
         <p class="hint" id="wipeHint" hidden>Nie masz zapisanych zakładów.</p>
       </div>
