@@ -300,6 +300,25 @@ main { max-width: 1100px; margin: 0 auto; padding: 14px 16px; }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 @media (min-width: 900px) { .toast { bottom: 24px; } }
 
+/* ---------- nowa wersja aplikacji (pasek „Odśwież”) ---------- */
+.update-bar {
+  position: fixed; left: 50%; transform: translateX(-50%); z-index: 45;
+  bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 10px);
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  width: max-content; max-width: calc(100vw - 32px);
+  padding: 8px 8px 8px 16px; border-radius: 14px; font-size: .9rem; font-weight: 600;
+  background: #1e2547; color: #fff; border: 1px solid rgba(124,92,255,.65); box-shadow: var(--shadow);
+}
+.update-bar[hidden] { display: none; }
+.update-bar .btn { padding: 8px 14px; flex: none; }
+body.has-update { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 80px); }
+body.has-update .toast { bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 72px); }
+@media (min-width: 900px) {
+  .update-bar { bottom: 24px; }
+  body.has-update { padding-bottom: 90px; }
+  body.has-update .toast { bottom: 86px; }
+}
+
 /* ---------- konto ---------- */
 .acct-btn.on { background: linear-gradient(135deg, var(--accent), #5b8cff); color: #fff; border-color: transparent; }
 .acct-btn { position: relative; }

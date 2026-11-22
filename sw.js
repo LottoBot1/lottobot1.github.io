@@ -1,5 +1,5 @@
 // Service worker: aplikacja działa offline, a wyniki zawsze pobierane są najpierw z sieci.
-const VERSION = 'typer49-v2.9.4';
+const VERSION = 'typer49-v2.9.5';
 const SHELL = ['./', 'index.html', 'app.css', 'app.js', 'config.js', 'cloud.js', 'time.js', 'bilans.js', 'systemy.js', 'push.js', 'dostep.js', 'wersja.js', 'privacy.html', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png'];
 const CDN = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js';
 
@@ -18,6 +18,7 @@ self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET') return;      // m.in. HEAD z pomiarem czasu (app.js syncClock) – zawsze sieć
   if (url.searchParams.has('clock')) return;    // pomiar czasu nigdy z pamięci podręcznej
+  if (url.searchParams.has('wersja')) return;   // sprawdzanie nowej wersji (wersja.js fromServer) – zawsze sieć
 
   // Biblioteka Supabase z CDN – wersja przypięta, więc najpierw cache.
   if (url.href === CDN) {

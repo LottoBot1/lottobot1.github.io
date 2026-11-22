@@ -1,7 +1,8 @@
 /* Typer49 – numer wersji aplikacji pokazywany na dole zakładki Więcej.
    Jedno źródło: stała VERSION w sw.js (np. 'typer49-v2.9.2'). Aplikacja pyta działający service worker,
    którą wersję faktycznie załadował; gdy go nie ma (pierwsze otwarcie, przeglądarka bez service workera),
-   odczytuje VERSION z pliku sw.js na serwerze. Funkcje czyste (label, fromSource) są testowane w tests/wersja.test.js. */
+   odczytuje VERSION z pliku sw.js na serwerze. Tu jest też logika paska „Dostępna nowa wersja – Odśwież”.
+   Funkcje czyste (label, fromSource, shouldOffer, packSnapshot, unpackSnapshot) są testowane w tests/wersja.test.js. */
 (function (root) {
   'use strict';
 
@@ -41,7 +42,38 @@
     return v ? { text: 'Typer49 ' + v, source: 'plik' } : null;
   }
 
-  const api = { label, fromSource, loaded };
+  // ---------------------------------------------------------------- nowa wersja – pasek „Odśwież” (backlog d)
+  // Pasek pokazujemy, gdy na serwerze jest inna wersja niż ta, na której działa otwarta strona
+  // (także przy cofnięciu do last-good). Obie wersje muszą mieć poprawny format.
+  function shouldOffer(pageVersion, serverVersion) {
+    const a = label(pageVersion), b = label(serverVersion);
+    return !!(a && b && a !== b);
+  }
+
+  // Wersja na serwerze: stała VERSION z sw.js pobranego z sieci; null bez internetu albo po 4 s.
+  async function fromServer() {
+    try {
+      const res = await Promise.race([root.fetch('sw.js?wersja=' + Date.now(), { cache: 'no-store' }), timeout(4000, null)]);
+      return res && res.ok ? fromSource(await res.text()) : null;
+    } catch { return null; }
+  }
+
+  // Niezapisana praca (wybrane liczby, wygenerowane zestawy, system, kupon) przechowana na chwilę
+  // na czas przeładowania strony; po 10 minutach nieaktualna.
+  const SNAPSHOT_MAX_MS = 10 * 60 * 1000;
+  function packSnapshot(data, nowMs) {
+    try { return JSON.stringify({ v: 1, t: nowMs, data }); } catch { return null; }
+  }
+  function unpackSnapshot(text, nowMs) {
+    try {
+      const s = JSON.parse(text);
+      if (!s || s.v !== 1 || typeof s.t !== 'number' || !s.data || typeof s.data !== 'object') return null;
+      if (nowMs - s.t > SNAPSHOT_MAX_MS || s.t - nowMs > 60 * 1000) return null;
+      return s.data;
+    } catch { return null; }
+  }
+
+  const api = { label, fromSource, loaded, fromWorker, fromServer, shouldOffer, packSnapshot, unpackSnapshot, SNAPSHOT_MAX_MS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   root.TyperWersja = api;
 })(typeof window !== 'undefined' ? window : globalThis);

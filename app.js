@@ -460,6 +460,7 @@
       $('#methodHint').innerHTML = esc(METHOD_HINT.trend) + `<br>Model faworyzuje teraz: <b>${st.trendTop.slice().sort((a, b) => a - b).join(', ')}</b>`;
     }
     renderPicker();
+    if (state.lastGen.length && !$('#genResults').innerHTML) renderGenResults();   // zestawy odtworzone po aktualizacji
   }
 
   function renderPicker() {
@@ -1759,6 +1760,64 @@
     window.addEventListener('online', () => syncClock(true));
   }
 
+  // ------------------------------------------------------------------ nowa wersja aplikacji (backlog d)
+  // Strona zapamiętuje wersję, na której działa (VERSION z sw.js w chwili otwarcia). Po powrocie do aplikacji,
+  // po odzyskaniu internetu i po zmianie service workera porównuje ją z wersją na serwerze; gdy jest inna,
+  // pokazuje pasek „Dostępna nowa wersja – Odśwież”. Przeładowanie tylko po kliknięciu, z zachowaniem
+  // niezapisanej pracy (sessionStorage, najwyżej 10 min). Logika i testy: wersja.js, tests/wersja.test.js.
+  const TW = window.TyperWersja, RELOAD_KEY = 'typer.reloadState';
+  let pageVersion = null, updateOffered = false, updateChecking = false;
+  async function checkUpdate() {
+    if (!TW || updateOffered || updateChecking || location.protocol === 'file:') return;
+    updateChecking = true;
+    try {
+      if (!pageVersion) {
+        // wersja tej strony: z serwera (pliki aplikacji też przyszły z sieci), bez internetu – z service workera,
+        // który podał pliki z pamięci podręcznej
+        pageVersion = navigator.onLine ? await TW.fromServer() : await TW.fromWorker().catch(() => null);
+        return;
+      }
+      if (!navigator.onLine) return;
+      const server = await TW.fromServer();
+      if (TW.shouldOffer(pageVersion, server)) {
+        updateOffered = true;
+        $('#updateBar').hidden = false; document.body.classList.add('has-update');
+        navigator.serviceWorker?.getRegistration().then(r => r && r.update()).catch(() => {});
+      }
+    } finally { updateChecking = false; }
+  }
+  function reloadToUpdate() {
+    if (state.sysBusy) { toast('Chwileczkę – trwa układanie systemu'); return; }
+    const snap = TW.packSnapshot({
+      picked: [...state.picked], lastGen: state.lastGen, method: state.method, count: state.count,
+      sysPicked: [...state.sysPicked], sysResult: state.sysResult, check: $('#checkInput').value,
+    }, Date.now());
+    try { if (snap) sessionStorage.setItem(RELOAD_KEY, snap); } catch { /* bez sessionStorage – przeładuj i tak */ }
+    $('#updateBtn').disabled = true; $('#updateBtn').textContent = 'Odświeżam…';
+    location.reload();
+  }
+  function restoreAfterUpdate() {
+    let text = null;
+    try { text = sessionStorage.getItem(RELOAD_KEY); sessionStorage.removeItem(RELOAD_KEY); } catch { return; }
+    const s = TW && text ? TW.unpackSnapshot(text, Date.now()) : null;
+    if (!s) return;
+    const nums = a => Array.isArray(a) ? a.filter(n => Number.isInteger(n) && n >= 1 && n <= 49) : [];
+    state.picked = new Set(nums(s.picked));
+    state.sysPicked = new Set(nums(s.sysPicked));
+    if (Array.isArray(s.lastGen)) state.lastGen = s.lastGen;
+    if (s.sysResult && typeof s.sysResult === 'object') state.sysResult = s.sysResult;
+    if (typeof s.method === 'string') state.method = s.method;
+    if (Number.isInteger(s.count)) state.count = s.count;
+    if (typeof s.check === 'string') $('#checkInput').value = s.check.slice(0, 200);
+    toast('Zaktualizowano aplikację');
+  }
+  // Systemy skrócone liczą się w Web Workerze ładowanym z osobnego pliku. Tworzymy go od razu przy otwarciu,
+  // razem z resztą plików tej wersji – inaczej po publikacji stara strona mogłaby uruchomić nowy systemy.js.
+  function prepareSystemWorker() {
+    if (sysWorker !== null || typeof Worker === 'undefined' || location.protocol === 'file:') return;
+    try { sysWorker = new Worker('systemy.js'); } catch { sysWorker = false; }
+  }
+
   // ------------------------------------------------------------------ start
   const VIEWS = ['home', 'gen', 'stats', 'bets', 'rank', 'more', 'account', 'premium'];
   document.title = (window.APP_CONFIG && window.APP_CONFIG.name) || document.title;
@@ -1767,6 +1826,8 @@
   bindRank();
   bindPush();
   decoratePremium();
+  restoreAfterUpdate();
+  prepareSystemWorker();
   const startView = location.hash.slice(1);
   if (VIEWS.includes(startView)) setView(startView);
   if (BENCH) runSystemsBenchmark();
@@ -1801,5 +1862,11 @@
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     navigator.serviceWorker.register('sw.js').catch(() => {});
+    navigator.serviceWorker.addEventListener('controllerchange', () => checkUpdate());
   }
+  $('#updateBtn').addEventListener('click', reloadToUpdate);
+  checkUpdate();                                        // zapamiętaj wersję tej strony
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) checkUpdate(); });
+  window.addEventListener('online', () => checkUpdate());
+  setInterval(() => { if (!document.hidden) checkUpdate(); }, 30 * 60 * 1000);
 })();
