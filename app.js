@@ -1826,8 +1826,40 @@
     setTimeout(() => d.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
   });
 
+  // ------------------------------------------------------------------ ekran 18+ (zgodność prawna, runda 3)
+  // Zasłania aplikację do czasu potwierdzenia pełnoletności (zapamiętane na urządzeniu: TyperDostep.ADULT_KEY).
+  // Nie wstrzymuje reszty startu: service worker, powiadomienia i zapis zestawu czekającego na logowanie
+  // działają pod spodem. Bez localStorage (tryb prywatny) potwierdzenie obowiązuje do zamknięcia strony.
+  let adultThisSession = false;
+  function applyAgeGate() {
+    const ok = adultThisSession || TD.adultConfirmed(store.get(TD.ADULT_KEY, null), Date.now());
+    document.documentElement.classList.toggle('adult-ok', ok);
+    $$('.topbar, .tabs, main, #updateBar').forEach(el => { el.inert = !ok; });
+    if (!ok) setTimeout(() => { try { $('#ageYes').focus(); } catch { /* bez fokusu */ } }, 0);
+  }
+  $('#ageYes').addEventListener('click', () => {
+    adultThisSession = true;
+    store.set(TD.ADULT_KEY, TD.adultRecord(Date.now()));
+    applyAgeGate();
+  });
+  $('#ageNo').addEventListener('click', () => {
+    try { window.close(); } catch { /* przeglądarka nie pozwala zamknąć okna */ }
+    setTimeout(() => { $('#ageMsg').hidden = false; }, 300);   // gdy okno się nie zamknęło
+  });
+
+  // Źródło wyników (jedna stała: APP_CONFIG.dataSource)
+  function renderDataSource() {
+    const src = window.APP_CONFIG && window.APP_CONFIG.dataSource, el = $('#dataSource');
+    if (!src || !el) return;
+    let host = '';
+    try { host = new URL(src.url).hostname.replace(/^www\./, ''); } catch { return; }
+    el.innerHTML = `Źródło wyników: <a href="${esc(src.url)}" target="_blank" rel="noopener">${esc(src.name)} (${esc(host)})</a>`;
+  }
+
   // ------------------------------------------------------------------ start
-  const VIEWS =['home', 'gen', 'stats', 'bets', 'rank', 'more', 'account', 'premium'];
+  applyAgeGate();
+  renderDataSource();
+  const VIEWS = ['home', 'gen', 'stats', 'bets', 'rank', 'more', 'account', 'premium'];
   document.title = (window.APP_CONFIG && window.APP_CONFIG.name) || document.title;
   bind();
   bindAccount();

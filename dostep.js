@@ -71,8 +71,20 @@
     return guest.concat(add.filter(b => !ids.has(b.id)));
   }
 
+  // ---------------------------------------------------------------- ekran 18+ (zgodność prawna, runda 3)
+  // Potwierdzenie pełnoletności zapamiętane na urządzeniu (localStorage 'typer.adult'): {v: 1, at: ISO}.
+  const ADULT_KEY = 'typer.adult';
+  const adultRecord = nowMs => ({ v: 1, at: new Date(nowMs).toISOString() });
+  /** Czy na tym urządzeniu potwierdzono już 18+ (poprawny zapis; data nie może być z przyszłości). */
+  function adultConfirmed(rec, nowMs) {
+    if (!rec || rec.v !== 1) return false;
+    const t = Date.parse(rec.at);
+    return Number.isFinite(t) && t <= nowMs + DAY;
+  }
+
   const api = { PENDING_MAX_AGE, ACCOUNT_VIEWS, ACCOUNT_FEATURES, needsAccountView, needsAccount,
-    validSet, pendingSets, pendingJoin, movedId, toMoved, splitLegacy, mergeGuest };
+    validSet, pendingSets, pendingJoin, movedId, toMoved, splitLegacy, mergeGuest,
+    ADULT_KEY, adultRecord, adultConfirmed };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   root.TyperDostep = api;
 })(typeof window !== 'undefined' ? window : globalThis);

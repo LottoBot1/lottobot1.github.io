@@ -78,3 +78,20 @@ test('łączenie zakładów gościa bez duplikatów', () => {
   const g = [{ id: 'a' }, { id: 'b' }];
   assert.deepEqual(D.mergeGuest(g, [{ id: 'b' }, { id: 'c' }]).map(b => b.id), ['a', 'b', 'c']);
 });
+
+test('ekran 18+: potwierdzenie zapamiętane na urządzeniu', () => {
+  const now = Date.parse('2026-11-22T18:00:00Z');
+  const rec = D.adultRecord(now);
+  assert.equal(D.ADULT_KEY, 'typer.adult');
+  assert.deepEqual(rec, { v: 1, at: '2026-11-22T18:00:00.000Z' });
+  assert.equal(D.adultConfirmed(rec, now), true);
+  assert.equal(D.adultConfirmed(rec, now + 400 * 24 * 3600 * 1000), true, 'nie wygasa');
+});
+
+test('ekran 18+: brak, uszkodzony lub z przyszłości zapis = pokaż ekran', () => {
+  const now = Date.parse('2026-11-22T18:00:00Z');
+  for (const rec of [null, undefined, {}, { v: 2, at: '2026-11-22T18:00:00Z' }, { v: 1 }, { v: 1, at: 'jutro' }, '1', true]) {
+    assert.equal(D.adultConfirmed(rec, now), false, JSON.stringify(rec));
+  }
+  assert.equal(D.adultConfirmed({ v: 1, at: '2026-11-25T18:00:00Z' }, now), false, 'z przyszłości');
+});

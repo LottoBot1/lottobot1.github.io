@@ -15,8 +15,20 @@
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="stylesheet" href="app.css">
+  <!-- Ekran 18+: jeśli na tym urządzeniu już potwierdzono, nie pokazuj go nawet na chwilę (decyzję i tak podejmuje app.js) -->
+  <script>try { var a = JSON.parse(localStorage.getItem('typer.adult')); if (a && a.v === 1) document.documentElement.classList.add('adult-ok'); } catch (e) {}</script>
 </head>
 <body>
+  <div class="age-gate" id="ageGate" role="dialog" aria-modal="true" aria-labelledby="ageTitle">
+    <div class="age-box">
+      <span class="brand-ball" aria-hidden="true">49</span>
+      <h1 id="ageTitle">🔞 Tylko dla osób pełnoletnich</h1>
+      <p>Typer49 jest przeznaczony dla osób pełnoletnich. Aplikacja ma charakter informacyjny i nie umożliwia udziału w grach.</p>
+      <button class="btn primary big" id="ageYes">Mam ukończone 18 lat</button>
+      <button class="btn big" id="ageNo">Wyjdź</button>
+      <p class="hint" id="ageMsg" role="status" hidden>Możesz teraz zamknąć tę kartę lub aplikację.</p>
+    </div>
+  </div>
   <header class="topbar">
     <div class="brand">
       <span class="brand-ball" aria-hidden="true">49</span>
@@ -302,7 +314,8 @@
           <p class="hint">⚠️ Losowania są całkowicie losowe – żadna statystyka, metoda, filtr ani system nie zwiększa szansy wygranej (6 z 49 to 1 do 13 983 816). Filtry pomagają co najwyżej unikać popularnych kombinacji, by ewentualną wygraną dzielić z mniejszą liczbą osób.</p>
           <p class="hint">🔞 Aplikacja jest przeznaczona dla osób pełnoletnich (18+). Graj odpowiedzialnie: ustal z góry kwotę na grę i nie próbuj odgrywać strat.</p>
           <p class="hint">Typer49 to niezależne narzędzie do analizy wyników gier liczbowych 6/49. Nie jest powiązane z Totalizatorem Sportowym. Lotto i Lotto Plus są znakami towarowymi ich właściciela; ich nazwy służą tu wyłącznie do wskazania gier.</p>
-          <p class="hint">Wyniki pobierane są automatycznie po każdym losowaniu (wt, czw, sob ok. 22:00). Źródło danych: mbnet.com.pl.</p>
+          <p class="hint">Wyniki pobierane są automatycznie po każdym losowaniu (wt, czw, sob ok. 22:00). <span id="dataSource"></span></p>
+          <p class="hint">Pomoc w problemach z hazardem: <a href="https://www.uzaleznieniabehawioralne.pl" target="_blank" rel="noopener">www.uzaleznieniabehawioralne.pl</a></p>
           <p class="hint"><a href="privacy.html">Zasady prywatności</a></p>
         </details>
         <button class="btn danger" id="wipeBtn">Usuń wszystkie zakłady z tego urządzenia</button>

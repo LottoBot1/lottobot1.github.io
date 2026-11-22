@@ -4,6 +4,8 @@
 // NIGDY nie wpisuj tu klucza "service_role" / "secret".
 window.APP_CONFIG = {
   name: 'Typer49',
+  // Źródło wyników pokazywane w aplikacji (Więcej → O aplikacji i odpowiedzialna gra). Jedyne miejsce z nazwą i adresem.
+  dataSource: { name: 'MBNet', url: 'https://www.mbnet.com.pl' },
   // W okresie testów wszystkie funkcje Premium są darmowe. Po uruchomieniu płatności (Etap 6) → false.
   betaAllPremium: true,
   freeLimits: { pendingBets: 10, setsPerClick: 3 },
@@ -12,9 +14,9 @@ window.APP_CONFIG = {
   tiers: ['free', 'premium'],
   // Najniższy poziom, który ma daną funkcję. Funkcji spoza listy używa każdy.
   featureTiers: {
-    trend: 'premium',          // metoda „Model trendu”
+    trend: 'premium',          // metoda „Ważona częstość”
     longStats: 'premium',      // statystyki z 250 / 500 / wszystkich losowań
-    heatModel: 'premium',      // mapa „Model”
+    heatModel: 'premium',      // mapa „Ważona częstość”
     pairs: 'premium',          // najczęstsze pary
     manySets: 'premium',       // więcej zestawów na raz niż freeLimits.setsPerClick
     unlimitedBets: 'premium',  // więcej oczekujących zakładów niż freeLimits.pendingBets
