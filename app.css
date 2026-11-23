@@ -350,6 +350,18 @@ body.has-update .toast { bottom: calc(var(--nav-h) + env(safe-area-inset-bottom)
 .acct-card { max-width: 520px; margin-left: auto; margin-right: auto; }
 .form { display: flex; flex-direction: column; gap: 10px; }
 .form .input { width: 100%; padding: 13px 14px; }
+/* pole hasła z przyciskiem „Pokaż / Ukryj hasło” (haslo.js) */
+.pw-wrap { position: relative; }
+.pw-wrap .pw-input { width: 100%; padding-right: 52px; }
+.pw-input::-ms-reveal, .pw-input::-ms-clear { display: none; }   /* własne oko Edge – zostaje tylko nasze */
+.pw-toggle {
+  position: absolute; top: 50%; right: 2px; transform: translateY(-50%);
+  width: 44px; height: 44px; display: grid; place-items: center; padding: 0;
+  border: 0; border-radius: 10px; background: transparent; color: var(--muted); cursor: pointer;
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+}
+.pw-toggle:hover, .pw-toggle[aria-pressed="true"] { color: var(--text); }
+.pw-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: -4px; }
 .acct-msg { font-size: .9rem; margin: 10px 0 0; min-height: 1em; }
 .acct-msg.err { color: var(--bad); }
 .acct-msg.ok { color: var(--ok); }

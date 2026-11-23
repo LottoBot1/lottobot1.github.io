@@ -125,6 +125,8 @@
   // wysyłane ani usuwane bez decyzji użytkownika. Na liście zakładów są tylko zakłady konta.
   // Zestaw kliknięty „Zapisz” przez gościa i kod zaproszenia czekają na zalogowanie najwyżej 7 dni (dostep.js).
   const TD = window.TyperDostep;
+  // Pokaż / ukryj hasło (haslo.js); bez modułu – zwykłe pole hasła
+  const TH = window.TyperHaslo || { field: a => `<input class="input" type="password" ${a}>`, hideAll() {}, bind() {} };
   const OWNER_KEY = 'typer.owner', GUEST_KEY = 'lotto2.bets.guest';
   const PENDING_SAVE = 'typer.pendingSave', PENDING_JOIN = 'typer.pendingJoin';
   let guestBets = store.get(GUEST_KEY, []);
@@ -1014,7 +1016,7 @@
       el.innerHTML = `
         <h2>Ustaw nowe hasło</h2>
         <form id="pwForm" class="form">
-          <input class="input" type="password" name="pw" autocomplete="new-password" placeholder="Nowe hasło (min. 8 znaków)" required minlength="8">
+          ${TH.field('name="pw" autocomplete="new-password" placeholder="Nowe hasło (min. 8 znaków)" required minlength="8"')}
           <button class="btn primary big">Zapisz hasło</button>
         </form><p id="acctMsg" class="acct-msg"></p>`;
       return;
@@ -1070,7 +1072,7 @@
         : 'Zaloguj się, aby zapisywać zakłady i mieć je na wszystkich urządzeniach.'}</p>
       <form id="authForm" class="form">
         <input class="input" type="email" name="email" autocomplete="email" placeholder="Adres e-mail" required>
-        ${reset ? '' : `<input class="input" type="password" name="pw" autocomplete="${reg ? 'new-password' : 'current-password'}" placeholder="Hasło${reg ? ' (min. 8 znaków)' : ''}" required minlength="${reg ? 8 : 1}">`}
+        ${reset ? '' : TH.field(`name="pw" autocomplete="${reg ? 'new-password' : 'current-password'}" placeholder="Hasło${reg ? ' (min. 8 znaków)' : ''}" required minlength="${reg ? 8 : 1}"`)}
         ${reg ? `<label class="check-row"><input type="checkbox" name="terms" required> <span>Mam ukończone 18 lat i akceptuję <a href="privacy.html" target="_blank">zasady prywatności</a>.</span></label>` : ''}
         <button class="btn primary big">${reset ? 'Wyślij link' : reg ? 'Załóż konto' : 'Zaloguj się'}</button>
       </form>
@@ -1135,6 +1137,7 @@
   }
 
   function bindAccount() {
+    TH.bind(document);
     $('#accountBtn').addEventListener('click', () => setView('account'));
     const body = $('#accountBody');
     body.addEventListener('click', e => {
@@ -1156,7 +1159,8 @@
     });
     body.addEventListener('submit', e => {
       e.preventDefault();
-      const f = e.target, btn = f.querySelector('button');
+      const f = e.target, btn = f.querySelector('button:not([type="button"])');   // przycisk wysyłania, nie oko przy haśle
+      TH.hideAll(f);                                   // po wysłaniu hasło wraca do stanu ukrytego
       setAcctMsg('');
       if (f.id === 'authForm' && previewGuest()) { setAcctMsg('Podgląd jako gość – logowanie jest wyłączone. Wyłącz podgląd na niebieskim pasku.'); return; }
       if (f.id === 'authForm') withBusy(btn, async () => {
