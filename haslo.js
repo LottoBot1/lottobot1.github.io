@@ -27,6 +27,14 @@
     return `<div class="pw-wrap"><input class="input pw-input" type="password" ${attrs}>${buttonHtml()}</div>`;
   }
 
+  const escAttr = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  /** Ukryte pole z e-mailem konta dla menedżerów haseł przy ustawianiu nowego hasła (autocomplete="username").
+      Bez atrybutu name – formularz go nie wysyła; tylko do odczytu, niewidoczne i poza kolejnością klawisza Tab. */
+  function usernameField(email) {
+    return `<input class="pm-hidden" type="email" autocomplete="username" value="${escAttr(email)}" readonly tabindex="-1" aria-hidden="true">`;
+  }
+
   /** Ustawia pole i przycisk w danym stanie ('password' = ukryte, 'text' = widoczne). */
   function apply(input, btn, type) {
     input.type = type;
@@ -70,7 +78,7 @@
     doc.addEventListener('click', e => { const b = hit(e); if (b) { e.preventDefault(); toggle(b, doc); } });
   }
 
-  const api = { nextType, labelFor, field, apply, toggle, hideAll, bind };
+  const api = { nextType, labelFor, field, usernameField, apply, toggle, hideAll, bind };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   root.TyperHaslo = api;
 })(typeof window !== 'undefined' ? window : globalThis);

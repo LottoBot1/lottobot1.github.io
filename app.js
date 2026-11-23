@@ -1016,6 +1016,7 @@
       el.innerHTML = `
         <h2>Ustaw nowe hasło</h2>
         <form id="pwForm" class="form">
+          ${TH.usernameField ? TH.usernameField(u.email) : ''}
           ${TH.field('name="pw" autocomplete="new-password" placeholder="Nowe hasło (min. 8 znaków)" required minlength="8"')}
           <button class="btn primary big">Zapisz hasło</button>
         </form><p id="acctMsg" class="acct-msg"></p>`;

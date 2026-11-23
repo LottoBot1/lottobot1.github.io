@@ -91,6 +91,25 @@ test('app.js używa wspólnej funkcji dla wszystkich pól hasła i nie ma surowy
   assert.ok(app.includes('autocomplete="new-password" placeholder="Nowe hasło'), 'autocomplete nowego hasła');
 });
 
+test('ukryte pole e-mail dla menedżerów haseł: wartość z konta, autocomplete="username", bez name', () => {
+  const html = H.usernameField('jan@example.com');
+  assert.match(html, /^<input class="pm-hidden" type="email" autocomplete="username" value="jan@example\.com" readonly tabindex="-1" aria-hidden="true">$/);
+  assert.ok(!/\sname=/.test(html), 'bez name – formularz go nie wysyła');
+  assert.match(H.usernameField('a"b<c>@x.pl'), /value="a&quot;b&lt;c&gt;@x\.pl"/, 'wartość zabezpieczona');
+  assert.match(H.usernameField(null), /value=""/);
+});
+
+test('formularz „Ustaw nowe hasło” ma ukryte pole e-mail, a zmiana hasła używa tylko pola hasła', () => {
+  const app = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+  const form = app.slice(app.indexOf('<form id="pwForm"'), app.indexOf('</form>', app.indexOf('<form id="pwForm"')));
+  assert.ok(form.includes('TH.usernameField(u.email)'), 'e-mail zalogowanego konta');
+  assert.ok(form.indexOf('usernameField') < form.indexOf('TH.field('), 'pole e-mail przed polem hasła');
+  assert.ok(app.includes('await Cloud.updatePassword(f.pw.value)'), 'do bazy idzie tylko nowe hasło');
+  const css = fs.readFileSync(path.join(__dirname, '..', 'app.css'), 'utf8');
+  const rule = (css.match(/\.pm-hidden \{[^}]*\}/) || [''])[0];
+  assert.ok(rule.includes('opacity: 0') && rule.includes('position: absolute') && !rule.includes('display: none'), 'ukryte bez display:none');
+});
+
 test('haslo.js jest ładowany przed app.js i jest w pamięci offline', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
   const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
