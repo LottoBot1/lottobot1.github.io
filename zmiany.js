@@ -9,7 +9,7 @@
   const LIST = [
     { v: '2.9.10', date: '2026-11-23', items: [
       'Podgląd hasła: ikona oka przy logowaniu, zakładaniu konta i ustawianiu nowego hasła.',
-      'Przy ustawianiu nowego hasła menedżer haseł łatwiej rozpozna Twoje konto.',
+      'Telefon łatwiej zapisze nowe hasło do właściwego konta.',
     ] },
     { v: '2.9.9', date: '2026-11-22', items: [
       'Poprawka: zasady prywatności można znowu przewinąć do końca.',
