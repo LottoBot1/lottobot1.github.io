@@ -6,6 +6,8 @@ window.APP_CONFIG = {
   name: 'Typer49',
   // Źródło wyników pokazywane w aplikacji (Więcej → O aplikacji i odpowiedzialna gra). Jedyne miejsce z nazwą i adresem.
   dataSource: { name: 'MBNet', url: 'https://www.mbnet.com.pl' },
+  // Adres kontaktowy (ten sam co w privacy.html – pilnuje tego tests/zmiany.test.js).
+  contactEmail: 'typer49.kontakt@gmail.com',
   // W okresie testów wszystkie funkcje Premium są darmowe. Po uruchomieniu płatności (Etap 6) → false.
   betaAllPremium: true,
   freeLimits: { pendingBets: 10, setsPerClick: 3 },

@@ -430,6 +430,16 @@ a { color: var(--accent2); }
 .modal-amount { font-size: 2.2rem; font-weight: 800; margin: 4px 0 8px; color: var(--warn); font-variant-numeric: tabular-nums; }
 .modal-actions { justify-content: flex-end; margin-top: 14px; }
 
+/* ---------- Co nowego (Więcej i okienko po aktualizacji) ---------- */
+.news-item { margin: 0 0 14px; }
+.news-item h3 { margin: 0 0 4px; color: var(--text); }
+.news-item h3 span { color: var(--muted); font-weight: 400; font-size: .82rem; }
+.news-points { margin: 0; padding-left: 20px; font-size: .9rem; line-height: 1.45; overflow-wrap: anywhere; }
+.news-points li { margin: 3px 0; }
+.news-more summary { cursor: pointer; padding: 10px 0; font-weight: 600; font-size: .9rem; text-decoration: underline; }
+.news-contact { margin-bottom: 0; }
+.news-contact a { color: inherit; font-weight: 700; }
+
 /* pomiar szybkości (?pomiar=systemy) */
 .bench-table { overflow-x: auto; }
 .bench-table table { width: 100%; border-collapse: collapse; font-size: .8rem; font-variant-numeric: tabular-nums; }

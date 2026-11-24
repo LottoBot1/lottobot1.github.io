@@ -1,6 +1,6 @@
 // Service worker: aplikacja działa offline, a wyniki zawsze pobierane są najpierw z sieci.
 const VERSION = 'typer49-v2.9.10';
-const SHELL = ['./', 'index.html', 'app.css', 'app.js', 'config.js', 'cloud.js', 'time.js', 'bilans.js', 'systemy.js', 'push.js', 'dostep.js', 'wersja.js', 'haslo.js', 'privacy.html', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png'];
+const SHELL = ['./', 'index.html', 'app.css', 'app.js', 'config.js', 'cloud.js', 'time.js', 'bilans.js', 'systemy.js', 'push.js', 'dostep.js', 'wersja.js', 'haslo.js', 'zmiany.js', 'privacy.html', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png'];
 const CDN = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js';
 
 self.addEventListener('install', e => {

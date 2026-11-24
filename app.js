@@ -1786,6 +1786,7 @@
       const server = await TW.fromServer();
       if (TW.shouldOffer(pageVersion, server)) {
         updateOffered = true;
+        closeNews();                                  // nigdy okienko razem z paskiem
         $('#updateBar').hidden = false; document.body.classList.add('has-update');
         navigator.serviceWorker?.getRegistration().then(r => r && r.update()).catch(() => {});
       }
@@ -1846,6 +1847,7 @@
     adultThisSession = true;
     store.set(TD.ADULT_KEY, TD.adultRecord(Date.now()));
     applyAgeGate();
+    maybeShowNews();
   });
   $('#ageNo').addEventListener('click', () => {
     try { window.close(); } catch { /* przeglądarka nie pozwala zamknąć okna */ }
@@ -1861,9 +1863,53 @@
     el.innerHTML = `Źródło wyników: <a href="${esc(src.url)}" target="_blank" rel="noopener">${esc(src.name)} (${esc(host)})</a>`;
   }
 
+  // ------------------------------------------------------------------ Co nowego (zmiany.js)
+  const TZ = window.TyperZmiany;
+  const newsPoints = e => `<ul class="news-points">${e.items.map(t => `<li>${esc(t)}</li>`).join('')}</ul>`;
+  function renderNews() {
+    if (!TZ || !TZ.LIST.length) return;
+    const item = e => `<div class="news-item"><h3>Wersja ${esc(e.v)} <span>· ${esc(e.date.split('-').reverse().join('.'))}</span></h3>${newsPoints(e)}</div>`;
+    const rest = TZ.LIST.slice(3);
+    $('#newsList').innerHTML = TZ.LIST.slice(0, 3).map(item).join('')
+      + (rest.length ? `<details class="news-more"><summary>Pokaż wszystkie</summary>${rest.map(item).join('')}</details>` : '');
+    const mail = window.APP_CONFIG && window.APP_CONFIG.contactEmail;
+    $('#newsContact').innerHTML = 'Typer49 jest stale rozwijany. Masz pomysł albo znalazłeś błąd? '
+      + (mail ? `<a href="mailto:${esc(mail)}">Napisz do nas.</a>` : 'Napisz do nas.');
+    $('#newsCard').hidden = false;
+  }
+  function closeNews() {
+    const m = $('#newsModal');
+    if (m.hidden) return;
+    m.hidden = true; m.onclick = m.onkeydown = $('#newsOk').onclick = null;
+    applyAgeGate();                                   // przywraca dostępność reszty strony
+  }
+  // Wejście z linku (zaproszenie do grupy, e-mail z kontem) i pomiar: nie przeszkadzamy – okienko przy następnym starcie.
+  const newsBlocked = BENCH || /^#join=|access_token|type=recovery/.test(location.hash) || /[?&]code=/.test(location.search);
+  let newsDone = false;
+  /** Jednorazowe okienko po aktualizacji: po ekranie 18+, nigdy razem z paskiem nowej wersji. */
+  function maybeShowNews() {
+    if (newsDone || !TZ || !TZ.initial || !TZ.current()) return;
+    const cur = TZ.current(), what = TZ.decide({ ...TZ.initial, current: cur.v });
+    const mark = () => { newsDone = true; try { return TZ.markSeen(localStorage, cur.v); } catch { return false; } };
+    if (what === 'store') { mark(); return; }         // nowy użytkownik – tylko zapamiętaj wersję
+    if (what !== 'show' || newsBlocked || updateOffered || !document.documentElement.classList.contains('adult-ok')) return;
+    if (!mark()) return;
+    $('#newsTitle').textContent = `Co nowego w wersji ${cur.v}`;
+    $('#newsBody').innerHTML = newsPoints(cur);
+    const m = $('#newsModal');
+    m.hidden = false;
+    $$('.topbar, .tabs, main, #updateBar').forEach(el => { el.inert = true; });
+    $('#newsOk').onclick = closeNews;
+    m.onclick = e => { if (e.target === m) closeNews(); };
+    m.onkeydown = e => { if (e.key === 'Escape') closeNews(); };
+    $('#newsOk').focus();
+  }
+
   // ------------------------------------------------------------------ start
   applyAgeGate();
   renderDataSource();
+  renderNews();
+  maybeShowNews();
   const VIEWS = ['home', 'gen', 'stats', 'bets', 'rank', 'more', 'account', 'premium'];
   document.title = (window.APP_CONFIG && window.APP_CONFIG.name) || document.title;
   bind();
