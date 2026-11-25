@@ -7,6 +7,12 @@
   'use strict';
 
   const LIST = [
+    { v: '2.9.12', date: '2026-11-25', items: [
+      'Nowa sekcja „Co nowego” w zakładce Więcej i link „Napisz do nas”.',
+    ] },
+    { v: '2.9.11', date: '2026-11-25', items: [
+      'Nowa, pełniejsza polityka prywatności (link w zakładce Więcej).',
+    ] },
     { v: '2.9.10', date: '2026-11-23', items: [
       'Podgląd hasła: ikona oka przy logowaniu, zakładaniu konta i ustawianiu nowego hasła.',
       'Telefon łatwiej zapisze nowe hasło do właściwego konta.',

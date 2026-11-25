@@ -232,13 +232,14 @@ Punkty poniżej to **Etap 1–6**. Tylko tak nazywamy etapy w rozmowach, commita
   - (g) ✅ Podgląd hasła (pokaż/ukryj) we wszystkich polach hasła – **v2.9.10** = podgląd hasła + ukryte pole e-mail (gałąź `podglad-hasla`, 23.11.2026). W formularzu „Ustaw nowe hasło” jest ukryte pole e-mail konta dla menedżerów haseł (`TyperHaslo.usernameField`, `autocomplete="username"`, bez `name` – nie jest wysyłane, klasa `.pm-hidden` zamiast `display:none`). Gałąź `otwarte-powiadomienia` (privacy.html, otwarty punkt o funkcji powiadomień) będzie scalana w środę 25.11 jako **v2.9.11**. Zgłoszenie: na Androidzie nie dało się podejrzeć hasła przy zakładaniu konta. Pola: logowanie / nowe konto (`#authForm`) i „Ustaw nowe hasło” (`#pwForm`, także „Zmień hasło”). Wspólny moduł `haslo.js` (`window.TyperHaslo`: `field()` buduje pole z przyciskiem oka, `bind()` obsługuje kliknięcia, `hideAll()` ukrywa po wysłaniu formularza; zmiana zakładki buduje pole od nowa). Przycisk `type="button"`, 44×44 px, ikona SVG w kodzie, `aria-label`/`title` „Pokaż hasło”/„Ukryj hasło”, fokus i kursor zostają w polu; własne oko Edge ukryte. `autocomplete` i `name` bez zmian. Testy: `tests/haslo.test.js`. Otwarty punkt: iPhone (Safari) i prawdziwy telefon z Androidem.
   - (h) ✅ „Co nowego” – zrobione na gałęzi `co-nowego` (24.11.2026, teksty zaakceptowane 24.11.2026, czeka na publikację jako v2.9.12). Więcej → karta `#newsCard` (3 ostatnie wersje, „Pokaż wszystkie”, kontakt z `APP_CONFIG.contactEmail`); okienko `#newsModal` raz po zmianie wersji (`typer.seenVersion`, reguła `TyperZmiany.decide`), nie dla nowych użytkowników, po ekranie 18+, nigdy razem z `#updateBar`. **Plan publikacji (decyzja właściciela 24.11.2026):**
     - środa 25.11: `otwarte-powiadomienia` jako **v2.9.11**;
-    - czwartek 26.11 rano: `co-nowego` jako **v2.9.12** – wszystko poniżej dopiero po zgodzie właściciela w czwartek:
+    - środa 25.11 (zamiast czwartku 26.11 – decyzja właściciela 25.11.2026): `co-nowego` jako **v2.9.12**; punkty 1–5 zrobione na gałęzi 25.11.2026, publikacja dopiero po osobnej zgodzie właściciela:
       1. scalić main do `co-nowego` (zwykłe scalenie, bez rebase i force);
-      2. dopisać w `zmiany.js` wpisy 2.9.11 (nowa polityka prywatności, jeden prosty punkt) i 2.9.12 („Nowa sekcja Co nowego w zakładce Więcej”);
+      2. dopisać w `zmiany.js` wpisy 2.9.11 (nowa polityka prywatności, jeden prosty punkt) i 2.9.12 („Nowa sekcja „Co nowego” w zakładce Więcej i link „Napisz do nas””);
       3. dopisać klucz `typer.seenVersion` w nowej `privacy.html`, w części o danych zapisywanych na urządzeniu;
       4. ustawić v2.9.12 w `sw.js`;
       5. uruchomić testy.
 - **Etap 6** Google Play (aplikacja na Androida przez TWA) i płatności Premium (Play Billing) – dopiero gdy właściciel potwierdzi, że kwestie prawne (znak „Lotto”, reklama gier, licencja na dane) są zamknięte w osobnym projekcie.
+  - Przed monetyzacją: Dodać adres korespondencyjny administratora w privacy.html pkt 1 i w regulaminie §2.
   - Rozważyć dwa poziomy Premium – decyzja razem z cenami. (Kod jest gotowy: poziomy i przypisanie funkcji są w `config.js` – `tiers`, `featureTiers`. Nowy poziom wymaga też nowej wartości `profiles.plan` w bazie.)
 
 ### Zasady współpracy z właścicielem
