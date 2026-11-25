@@ -145,7 +145,7 @@ GitHub Action cron (Tue/Thu/Sat every 15 min 20:05–23:50 UTC, deploy only when
 
 ## Project rules
 
-- Keep the public project anonymous: commit as `lotto-bot <357825526+LottoBot1@users.noreply.github.com>` (noreply of the LottoBot1 organization; set in the repo's git config and in `update-data.yml`; since 22.11.2026 – the old `lotto-bot@users.noreply.github.com` was attributed by GitHub to an unrelated organization „Lotto-Bot”, history not rewritten) and never put the owner's real name or personal GitHub username into code, commits or docs.
+- Keep the public project anonymous: commit as `lotto-bot <357825526+LottoBot1@users.noreply.github.com>` (noreply of the LottoBot1 organization; set in the repo's git config and in `update-data.yml`; since 22.11.2026 – the old `lotto-bot@users.noreply.github.com` was attributed by GitHub to an unrelated organization „Lotto-Bot”, history not rewritten) and never put the owner's real name or personal GitHub username into code, commits or docs. **Wyjątek (świadoma decyzja właściciela, 25.11.2026):** imię i nazwisko administratora danych jest podane w `privacy.html`, pkt 1 (wymóg RODO art. 13) – tylko tam, nigdzie indziej w kodzie, commitach ani dokumentach.
 - Nie akceptować za właściciela warunków, licencji ani umów (np. `winget --accept-…-agreements`, sklepy, usługi, regulaminy). Najpierw zapytać i pokazać, co jest do zaakceptowania.
 - Zewnętrzne biblioteki zawsze z przypiętą wersją (dokładny numer, bez `^`, `~` ani „latest”), np. `@supabase/supabase-js@2.45.4`, `npm:@pushforge/builder@2.0.5` w funkcji Supabase.
 - Don't use "Lotto" as the product name or imitate Totalizator Sportowy branding (trademark); game names are used only descriptively.
