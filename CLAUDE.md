@@ -238,6 +238,7 @@ Punkty poniżej to **Etap 1–6**. Tylko tak nazywamy etapy w rozmowach, commita
       3. dopisać klucz `typer.seenVersion` w nowej `privacy.html`, w części o danych zapisywanych na urządzeniu;
       4. ustawić v2.9.12 w `sw.js`;
       5. uruchomić testy.
+  - (i) Stare i nowe pliki pomieszane w cache do 10 min po publikacji (wykryte przy v2.9.12, 25.11.2026; GitHub Pages: max-age=600) – poprawka na gałęzi `sw-bez-pamieci` jako **v2.9.13**: `sw.js` przy instalacji pobiera SHELL z `cache: 'reload'`, a pliki aplikacji z `cache: 'no-cache'`; `data/`, CDN i Supabase bez zmian. Testy: `tests/sw.test.js`. **Plan:** publikacja v2.9.13 w piątek 27.11.2026, po kontroli nocy 26/27.11, za zgodą właściciela.
 - **Etap 6** Google Play (aplikacja na Androida przez TWA) i płatności Premium (Play Billing) – dopiero gdy właściciel potwierdzi, że kwestie prawne (znak „Lotto”, reklama gier, licencja na dane) są zamknięte w osobnym projekcie.
   - Przed monetyzacją: Dodać adres korespondencyjny administratora w privacy.html pkt 1 i w regulaminie §2.
   - Rozważyć dwa poziomy Premium – decyzja razem z cenami. (Kod jest gotowy: poziomy i przypisanie funkcji są w `config.js` – `tiers`, `featureTiers`. Nowy poziom wymaga też nowej wartości `profiles.plan` w bazie.)

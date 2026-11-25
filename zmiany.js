@@ -7,6 +7,9 @@
   'use strict';
 
   const LIST = [
+    { v: '2.9.13', date: '2026-11-27', items: [
+      'Poprawka: po aktualizacji aplikacja od razu wczytuje wszystkie nowe pliki.',
+    ] },
     { v: '2.9.12', date: '2026-11-25', items: [
       'Nowa sekcja „Co nowego” w zakładce Więcej i link „Napisz do nas”.',
     ] },
